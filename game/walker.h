@@ -7,8 +7,8 @@
 typedef struct {
   double up;
   double down;
-  double left;
   double right;
+  double left;
 } probability_dir_t;
 
 typedef struct {
@@ -19,7 +19,7 @@ typedef struct {
 //walker
 void walker_init(walker_t* this, int x, int y, double probUp, double probDown, double probRight, double probLeft);
 void walker_destroy(walker_t* this);
-void walker_move(walker_t* this, movement_dir_t dir);
+void walker_move(walker_t* this, position_t* newPos, movement_dir_t dir);
 
 //probabilitties
 _Bool validate_probabilities(probability_dir_t* prob);

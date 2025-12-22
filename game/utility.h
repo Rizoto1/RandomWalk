@@ -5,7 +5,8 @@ typedef enum {
   UP,
   DOWN,
   RIGHT,
-  LEFT
+  LEFT,
+  MOVE_DIR_COUNT
 } movement_dir_t;
 
 typedef enum {
