@@ -1,8 +1,9 @@
 add_library(randomWalk SHARED)
 
 target_sources(randomWalk PRIVATE
-walker.c
-world.c
+  walker.c
+  world.c
+  utility.c
 )
 
 target_compile_definitions(randomWalk PUBLIC _XOPEN_SOURCE=500)
