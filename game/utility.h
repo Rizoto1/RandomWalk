@@ -5,8 +5,7 @@ typedef enum {
   UP,
   DOWN,
   RIGHT,
-  LEFT,
-  MOVE_DIR_COUNT
+  LEFT
 } movement_dir_t;
 
 typedef enum {
@@ -23,16 +22,13 @@ _Bool pos_equals(position_t* p1, position_t* p2);
 
 typedef struct {
   int count;
-  int maxCapacity;
-  position_t positions[];
+  int max;
+  position_t* positions;
 } trajectory_t;
 
+void trajectory_init(trajectory_t* t, int k);
 void trajectory_add(trajectory_t* t, position_t p);
-
-typedef struct {
-  _Bool reachedCenter;
-  long steps;
-} trajectory_result_t;
+void trajectory_destroy(trajectory_t* t);
 
 typedef struct {
   int reachedCenter;

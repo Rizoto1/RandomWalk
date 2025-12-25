@@ -26,18 +26,31 @@ typedef struct {
   int dy;
 } dir_delta_t;
 
-static const dir_delta_t DIR_DELTAS[MOVE_DIR_COUNT] = {
+static const dir_delta_t DIR_DELTAS[] = {
   {0, 1},   //up
   {0, -1},  //down
   {1, 0},   //right
   {-1, 0}   //left
 };
 
-void walker_move(walker_t* this, position_t* newPos, movement_dir_t dir) {
+static movement_dir_t probability_to_direciton(walker_t* this, const double* probability) {
+  if (*probability < this->prob.left) {
+    return LEFT;
+  } else if (*probability < this->prob.left + this->prob.right) {
+    return RIGHT;
+  } else if (* probability < this->prob.left + this->prob.right + this->prob.down) {
+    return DOWN;
+  } else {
+    return UP;
+  }
+}
+
+void walker_move(walker_t* this, position_t* newPos, const double dir_prob) {
   if (!this) {
     newPos = NULL;
     return;
   }
+  movement_dir_t dir = probability_to_direciton(this, &dir_prob);
   int x = this->pos.x + DIR_DELTAS[dir].dx; 
   int y = this->pos.y + DIR_DELTAS[dir].dy;
   newPos->x = x;
