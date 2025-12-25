@@ -35,7 +35,7 @@ _Bool w_in_obstacle(world_t* w, position_t* p) {
  * otherwise 0
  */
 _Bool w_is_inside_boundaries(world_t* w, position_t* p) {
-  return p->x >= 0 && p->x <= w->width && p->y >= 0 && p->y <= w->height;
+  return p->x >= 0 && p->x <= w->width -1 && p->y >= 0 && p->y <= w->height -1;
 }
 
 /*
@@ -43,14 +43,14 @@ _Bool w_is_inside_boundaries(world_t* w, position_t* p) {
  */
 void w_normalize(world_t* w, position_t* p) {
   if (p->x < 0) {
-    p->x = w->width;
-  } else if (p->x > w->width) {
+    p->x = w->width - 1;
+  } else if (p->x >= w->width) {
     p->x = 0;
   }
 
   if (p->y < 0) {
-    p->y = w->height;
-  } else if (p->y > w->height) {
+    p->y = w->height - 1;
+  } else if (p->y >= w->height) {
     p->y = 0;
   }
 }

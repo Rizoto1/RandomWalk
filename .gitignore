@@ -70,3 +70,4 @@ CMakeUserPresets.json
 
 #build
 build
+main.c

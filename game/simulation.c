@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory) {
+void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, FILE* file) {
   if (!this) {
     perror("Simulation doesnt exist");
     return;
@@ -18,6 +18,9 @@ void sim_init(simulation_t* this, walker_t walker, world_t world, int replicatio
   this->world = world; 
   this->cellStats = malloc(world.height * world.width * sizeof(cell_statistics_t));
   this->trajectory = trajectory;
+  if (file) {
+    this->file = file;
+  }
 }
 
 void sim_destroy(simulation_t* this) {
@@ -31,11 +34,13 @@ void sim_destroy(simulation_t* this) {
 }
 
 static void increment_positions(world_t* w, position_t* p) {
-  if (p->x > w->width) {
+    p->x++;
+  if (p->x >= w->width) {
     p->x = 0;
     p->y++;
-  } else {
-    p->x++;
+    if (p->y >= w->height) {
+      p->y = 0;
+    }
   }
 }
 

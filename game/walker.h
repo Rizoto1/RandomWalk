@@ -17,7 +17,7 @@ typedef struct {
 } walker_t;
 
 //walker
-void walker_init(walker_t* this, int x, int y, double probUp, double probDown, double probRight, double probLeft);
+void walker_init(walker_t* this, double probUp, double probDown, double probRight, double probLeft);
 void walker_destroy(walker_t* this);
 void walker_move(walker_t* this, position_t* newPos, const double dir_prob);
 
