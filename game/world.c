@@ -1,9 +1,6 @@
 #include "world.h"
 #include <stdlib.h>
 
-//TODO
-//check if obstacle range is right
-//check function that work with obstacle dont get out of array boundaries
 void w_init(world_t* w, int width, int height, world_type_t worldType) {
   if (width % 2 == 0) {
     width++;

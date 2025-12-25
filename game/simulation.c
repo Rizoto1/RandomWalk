@@ -6,7 +6,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, FILE* file) {
+void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
+
   if (!this) {
     perror("Simulation doesnt exist");
     return;
@@ -18,8 +19,8 @@ void sim_init(simulation_t* this, walker_t walker, world_t world, int replicatio
   this->world = world; 
   this->cellStats = malloc(world.height * world.width * sizeof(cell_statistics_t));
   this->trajectory = trajectory;
-  if (file) {
-    this->file = file;
+  if (fPath) {
+    this->file = fPath;
   }
 }
 
@@ -28,7 +29,7 @@ void sim_destroy(simulation_t* this) {
     perror("Simulation doesnt exist");
     return;
   }
-
+  this->file = NULL;
   free(this->cellStats);
   this->cellStats = NULL;
 }
@@ -77,8 +78,6 @@ static cell_statistics_t* get_cell_statistic(simulation_t* this, position_t* pos
 
 /*
  * simulates a single replication.
- * If there is error returns 2.
- * If walker reached center returns 1, otherwise 0.
 */
 
 void sim_simulate_from(simulation_t* this) {
