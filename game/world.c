@@ -49,7 +49,7 @@ _Bool w_is_inside_boundaries(world_t* this, position_t* p) {
 }
 
 /*
- *if x or y is outside world boundaries set their position on the other side of the world
+ * if x or y is outside world boundaries set their position on the other side of the world
  */
 void w_normalize(world_t* this, position_t* p) {
   if (!this || !p) return;
@@ -67,8 +67,6 @@ void w_normalize(world_t* this, position_t* p) {
   }
 }
 
-//converts 2d into 1d
-#define IDX(x, y, w) ((y) * (w) + (x))
 
 /*
  * This function creates obstacles based on percentage.
@@ -166,14 +164,16 @@ int w_load_from_file(world_t* this, const char* fPath) {
   }
 
   fclose(f);
+  w_all_nodes_reachable(this);
+
   return 1;
 }
 
 /*
- *This function save a world to a file.
- *If it succeeds returns 1 otherwise 0.
+ * This function save a world to a file.
+ * If it succeeds returns 1 otherwise 0.
  *
- *Creat with help from AI.
+ * Creat with help from AI.
  */
 int w_save_to_file(world_t* this, const char* fPath) {
   if (!this || !fPath) return 0; 

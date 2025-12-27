@@ -26,10 +26,10 @@ void trajectory_destroy(trajectory_t* t) {
   t->positions = NULL;
 }
 
-double ct_avg_steps(cell_statistics_t* ct, int replications) {
+double ct_avg_steps(point_statistics_t* ct, int replications) {
   return (double) ct->totalSteps / (double) replications;
 }
 
-double ct_reach_center_prob(cell_statistics_t* ct, int replications) {
+double ct_reach_center_prob(point_statistics_t* ct, int replications) {
   return (double) ct->reachedCenter / (double) replications;
 }

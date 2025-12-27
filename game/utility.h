@@ -1,6 +1,9 @@
 #ifndef UTILITY_H
 #define UTILITY_H
 
+//converts 2d into 1d
+#define IDX(x, y, w) ((y) * (w) + (x))
+
 typedef enum {
   UP,
   DOWN,
@@ -28,8 +31,8 @@ void trajectory_destroy(trajectory_t* t);
 typedef struct {
   int reachedCenter;
   long totalSteps;
-} cell_statistics_t;
+} point_statistics_t;
 
-double ct_avg_steps(cell_statistics_t* ct, int replications);
-double ct_reach_center_prob(cell_statistics_t* ct, int replications);
+double ct_avg_steps(point_statistics_t* ct, int replications);
+double ct_reach_center_prob(point_statistics_t* ct, int replications);
 #endif //UTILITY_H
