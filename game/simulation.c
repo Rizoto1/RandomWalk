@@ -20,6 +20,7 @@ void sim_init(simulation_t* this, walker_t walker, world_t world, int replicatio
   this->walker = walker;
   this->world = world; 
   this->pointStats = malloc(world.height * world.width * sizeof(point_statistics_t));
+  this->currentReplication = 0;
   this->trajectory = trajectory;
   if (fPath) {
     this->fSavePath = fPath;
@@ -56,7 +57,7 @@ void sim_run(simulation_t* this) {
   srand48(time(NULL));
   position_t pos = {0, 0};
   long points = this->world.height * this->world.width;
-  for (long rep = 0; rep < this->replications; rep++) {
+  for (; this->currentReplication < this->replications; this->currentReplication++) {
     pos.x = 0;
     pos.y = 0;
     for (long c = 0; c < points; c++) {

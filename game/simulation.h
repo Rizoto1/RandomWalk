@@ -8,6 +8,7 @@
 typedef struct {
   int k; //number of steps walker can make
   int replications;
+  int currentReplication;
   point_statistics_t* pointStats;
   walker_t walker;
   world_t world;
