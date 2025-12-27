@@ -8,11 +8,6 @@ typedef enum {
   LEFT
 } movement_dir_t;
 
-typedef enum {
-  WO_OBSTACLES,
-  W_OBSTALCES
-} world_type_t;
-
 typedef struct {
   int x;
   int y;

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
 
@@ -86,7 +87,7 @@ void sim_simulate_from(simulation_t* this) {
     return;
   }
 
-  position_t centerPos = {0,0};
+  position_t centerPos = {(int)floor((double)this->world.width / 2), (int)floor((double)this->world.height / 2)};
   cell_statistics_t* cs = get_cell_statistic(this, &this->walker.pos);
   position_t newPos = this->walker.pos;
   position_t* p_newPos = &newPos;
