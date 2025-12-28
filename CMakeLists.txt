@@ -5,5 +5,7 @@ project(
   LANGUAGES C
 )
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_subdirectory(game)
 add_subdirectory(server)

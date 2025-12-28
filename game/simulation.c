@@ -48,7 +48,7 @@ static void increment_positions(world_t* w, position_t* p) {
   }
 }
 
-void sim_run(simulation_t* this) {
+void sim_run(simulation_t* this, atomic_bool* isRunning) {
   if (!this) {
     perror("Simulation doesnt exist");
     return;
@@ -58,19 +58,27 @@ void sim_run(simulation_t* this) {
   position_t pos = {0, 0};
   long points = this->world.height * this->world.width;
   for (; this->currentReplication < this->replications; this->currentReplication++) {
+    if (!atomic_load(isRunning)) {
+      perror("Simulation terminated");
+      return;
+    }
     pos.x = 0;
     pos.y = 0;
     for (long c = 0; c < points; c++) {
+      if (!atomic_load(isRunning)) {
+        perror("Simulation terminated");
+        return;
+      }
       if (w_in_obstacle(&this->world, &pos)) {
         increment_positions(&this->world, &pos);
         continue;
       }
       this->walker.pos = pos;
-      sim_simulate_from(this);
+      sim_simulate_from(this, isRunning);
       increment_positions(&this->world, &pos);
-
     }
   }
+  atomic_store(isRunning, 0);
 }
 
 static point_statistics_t* get_point_statistic(simulation_t* this, position_t* pos) {
@@ -82,7 +90,7 @@ static point_statistics_t* get_point_statistic(simulation_t* this, position_t* p
 /*
  * simulates a single replication.
 */
-void sim_simulate_from(simulation_t* this) {
+void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
   if (!this) {
     perror("Simulation doesnt exist");
     return;
@@ -93,9 +101,17 @@ void sim_simulate_from(simulation_t* this) {
   position_t newPos = this->walker.pos;
   position_t* p_newPos = &newPos;
   for (int step = 0; step < this->k;) {
+    if (!atomic_load(isRunning)) {
+      perror("Simulation terminated");
+      return;
+    }
     _Bool moveSuccseful = 0;
     int attempts = 0;
     while (!moveSuccseful && attempts < ATTEMPTS) {
+      if (!atomic_load(isRunning)) {
+        perror("Simulation terminated");
+        return;
+      }
       attempts++;
       walker_move(&this->walker, p_newPos, drand48()); 
       if (!p_newPos) {
@@ -156,7 +172,7 @@ int sim_load_from_file(simulation_t* this, const char* fPath) {
     perror("Simulation load: file doesn't exist");
     return 0;
   }
-  
+
   char worldPath[256];
   deriveWorldFilename(fPath, worldPath);
   if (w_load_from_file(&this->world, worldPath) == 0) {
@@ -167,10 +183,10 @@ int sim_load_from_file(simulation_t* this, const char* fPath) {
 
   double up, down, right, left;
   if (fscanf(f, "%lf %lf %lf %lf\n",
-         &up,
-         &down,
-         &right,
-         &left) != 4) {
+             &up,
+             &down,
+             &right,
+             &left) != 4) {
     perror("Simulation load: improper probabilities.\n");
     fclose(f);
     return 0;

@@ -28,6 +28,7 @@ typedef struct {
 _Bool ipc_init_socket(ipc_context_t* this, int port);
 _Bool ipc_init_pipe(ipc_context_t* this);
 _Bool ipc_init_semaphore(ipc_context_t* this, const char* name, size_t size);
+_Bool ipc_init_from_fd(ipc_context_t* this, int fd);
 
 int  ipc_send(ipc_context_t* this, const void* data, size_t size);
 int  ipc_receive(ipc_context_t* this, void* buffer, size_t size);

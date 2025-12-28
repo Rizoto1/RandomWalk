@@ -40,6 +40,13 @@ _Bool ipc_init_socket(ipc_context_t* this, int port) {
   return 1;
 }
 
+_Bool ipc_init_from_fd(ipc_context_t* this, int fd) {
+  memset(this, 0, sizeof(*this));
+  this->type = IPC_SOCKET;
+  this->socket_fd = fd;
+  return 1;
+}
+
 /*
  * Initializes pipe IPC.
  *
