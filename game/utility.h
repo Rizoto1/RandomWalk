@@ -11,6 +11,16 @@ typedef enum {
   LEFT
 } movement_dir_t;
 
+typedef enum {
+  INTERACTIVE,
+  SUMMARY
+} viewmode_type_t;
+
+typedef enum {
+  AVG_MOVE_COUNT,
+  PROB_CENTER_REACH
+} summary_type_t;
+
 typedef struct {
   int x;
   int y;

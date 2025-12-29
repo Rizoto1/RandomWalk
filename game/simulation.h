@@ -18,7 +18,7 @@ typedef struct {
   const char* fSavePath;
 } simulation_t;
 
-void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fSavePath);
+_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fSavePath);
 void sim_destroy(simulation_t* this);
 void sim_run(simulation_t* this, atomic_bool* isRunning);
 void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning);

@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-void w_init(world_t* this, int width, int height, world_type_t worldType) {
-  if (!this) return;
+_Bool w_init(world_t* this, int width, int height, world_type_t worldType, int obstaclePercantage) {
+  if (!this) return 0;
 
   if (width % 2 == 0) {
     width++;
@@ -19,6 +19,12 @@ void w_init(world_t* this, int width, int height, world_type_t worldType) {
   this->height = height;
   this->worldType = worldType;
   this->obstacles = calloc(width * height, sizeof(char));
+  
+  if (worldType == W_OBSTALCES) {
+    w_create_obstacles(this, obstaclePercantage);
+  }
+
+  return 1;
 }
 
 void w_destroy(world_t* this) {
@@ -133,7 +139,9 @@ int w_load_from_file(world_t* this, const char* fPath) {
   }
 
   // Initialize world
-  w_init(this, width, height, (world_type_t)typeNum);
+  w_init(this, width, height, WO_OBSTACLES, 0);
+
+  this->worldType = (world_type_t)typeNum;
 
   if (typeNum == 0) {
     // calloc already zeroed obstacles – nothing to read

@@ -3,17 +3,19 @@
 #include <stdio.h>
 #include <string.h>
 
-void walker_init(walker_t* this, double probUp, double probDown, double probRight, double probLeft) {
-  if (!this) return;
+_Bool walker_init(walker_t* this, double probUp, double probDown, double probRight, double probLeft) {
+  if (!this) return 0;
 
   position_t pos = {0, 0};
   probability_dir_t prob = {probUp, probDown, probRight, probLeft};
   if (!validate_probabilities(&prob)) {
     perror("Sum of directional probabilites is not 1");
-    return;
+    return 0;
   }
   this->pos = pos;
   this->prob = prob;
+
+  return 1;
 }
 
 void walker_destroy(walker_t* this) {

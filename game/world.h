@@ -15,7 +15,7 @@ typedef struct {
   world_type_t worldType;
 } world_t;
 
-void w_init(world_t* this, int width, int height, world_type_t worldType);
+_Bool w_init(world_t* this, int width, int height, world_type_t worldType, int obstaclePercantage);
 void w_destroy(world_t* this);
 _Bool w_in_obstacle(world_t* this, position_t* p);
 _Bool w_is_inside_boundaries(world_t* this, position_t* p);

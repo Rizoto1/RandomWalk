@@ -8,11 +8,11 @@
 #include <math.h>
 #include <string.h>
 
-void sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
+_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
 
   if (!this) {
     perror("Simulation doesnt exist");
-    return;
+    return 0;
   }
 
   this->k = k;
@@ -24,7 +24,10 @@ void sim_init(simulation_t* this, walker_t walker, world_t world, int replicatio
   this->trajectory = trajectory;
   if (fPath) {
     this->fSavePath = fPath;
+    return 1;
   }
+  perror("Simulation: path to file doesnt exist");
+  return 0;
 }
 
 void sim_destroy(simulation_t* this) {

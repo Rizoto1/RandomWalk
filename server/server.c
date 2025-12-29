@@ -1,117 +1,86 @@
-#include "server.h"
-#include <game/simulation.h>
-#include <game/walker.h>
-#include <game/world.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <ipc/ipcPipe.h>
+#include <ipc/ipcShmSem.h>
+#include <ipc/ipcSocket.h>
+#include "serverUtil.h"
 
-static void* simulation_thread(void* arg) {
-  server_t* this = arg;
+void* server_recv_thread(void* arg) {
+    ServerCtx* ctx = arg;
+    char buf[64];
 
-  sim_run(&this->simulation, &this->running);
+    while(*ctx->running) {
+        if(ctx->type==0) pipe_recv(ctx->pipe,buf,64);
+        if(ctx->type==1) shm_read(ctx->shm,buf,64);
+        if(ctx->type==2) socket_recv(ctx->sock,buf,64);
 
-  return NULL;
+        if(strcmp(buf,"STOP")==0) *ctx->running = false;
+        if(strcmp(buf,"MODE_INTER")==0) ctx->sim->interactive = 1;
+        if(strcmp(buf,"MODE_SUM")==0)   ctx->sim->interactive = 0;
+    }
+    return NULL;
 }
 
-_Bool server_init(server_t* this, int port,
-                  int world_w, int world_h,
-                  int reps, int k,
-                  double up, double down,
-                  double right, double left, const char* fPath)
-{
-  memset(this, 0, sizeof(*this));
-  this->port = port;
-  atomic_store(&this->running, 0);
+void* server_send_thread(void* arg) {
+    ServerCtx* ctx = arg;
+    char message[256];
 
-  // init simulation
-  if (!simulation_init(&this->simulation, world_w, world_h, reps)) {
-    fprintf(stderr, "[server] simulation_init failed\n");
-    return 0;
-  }
+    while(*ctx->running) {
+        sprintf(message,"%d/%d",ctx->sim->currentReplication,ctx->sim->replications);
 
-  // init connection manager (socket only variant)
-  if (!client_connection_manager_init(&this->conn_mgr, port)) {
-    fprintf(stderr, "[server] conn_mgr init failed!\n");
-    return 0;
-  }
+        if(ctx->type==0) pipe_send(ctx->pipe,message);
+        if(ctx->type==2) socket_send(ctx->sock,message);
+        if(ctx->type==1) shm_write(ctx->shm,&ctx->sim->currentReplication); // 🔁 SHM nám posiela len číslo
 
-  printf("[server] initialized on port %d\n", port);
-  return 1;
+        sleep(1);
+    }
+    return NULL;
 }
 
-void server_run(server_t* this)
-{
-  atomic_store(&this->running, 1);
+void* simulation_thread(void* arg) {
+    ServerCtx* ctx = arg;
 
-  // spustíme thread pre simuláciu
-  pthread_create(&this->sim_thread, NULL, simulation_thread, this);
-
-  printf("[server] listening for client sessions...\n");
-
-  // hlavná slučka
-  while (atomic_load(&this->running))
-  {
-    client_session_t* session = NULL;
-
-    // blokuje kým nepríde žiadosť
-    if (!client_connection_manager_wait_for_session(&this->conn_mgr, &session))
-      continue;
-
-    // dostali sme dáta od klienta
-    char buffer[256];
-    int n = client_session_receive(session, buffer, sizeof(buffer));
-    if (n <= 0) {
-      client_session_close(session);
-      continue;
+    while(*ctx->running && ctx->sim->currentReplication < ctx->sim->replications) {
+        simulation_step(ctx->sim);
+        ctx->sim->currentReplication++;
     }
 
-    server_handle_request(this, session, buffer, (size_t)n);
-  }
+    simulation_save(ctx->sim);
+    *ctx->running = false;
+    return NULL;
 }
 
-void server_stop(server_t* this)
-{
-  atomic_store(&this->running, 0);
+int main(int argc, char** argv) {
 
-  pthread_join(this->sim_thread, NULL);
-  client_connection_manager_shutdown(&this->conn_mgr);
-  simulation_destroy(&this->simulation);
+    atomic_bool running = true;
+    simulation_t* sim = simulation_create(params);   // ty dodáš implementáciu
 
-  printf("[server] stopped\n");
-}
+    ServerCtx ctx = {0};
+    ctx.running = &running;
+    ctx.sim = sim;
 
-void server_broadcast(server_t* this, const void* data, size_t size)
-{
-  // iterácia cez sessions (dočasný minimalistický model)
-  for (int i = 0; i < this->conn_mgr.count; i++) {
-    client_session_t* sess = this->conn_mgr.sessions[i];
-    if (sess && sess->connected) {
-      client_session_send(sess, data, size, NULL);
+    if(strcmp(argv[1],"pipe")==0) {
+        Pipe p = pipe_init_server(argv[2]);
+        ctx.pipe = malloc(sizeof(Pipe)); *ctx.pipe = p; ctx.type = 0;
     }
-  }
-}
+    if(strcmp(argv[1],"sock")==0) {
+        Socket s = socket_init_server(atoi(argv[2]));
+        ctx.sock = malloc(sizeof(Socket)); *ctx.sock = s; ctx.type = 2;
+    }
+    if(strcmp(argv[1],"shm")==0) {
+        Shm s = shm_init_server(atoi(argv[2]), sim);
+        ctx.shm = malloc(sizeof(Shm)); *ctx.shm = s; ctx.type = 1;
+    }
 
-void server_handle_request(server_t* this, client_session_t* session,
-                           const void* data, size_t size)
-{
-  // primitívny protokol
-  if (strncmp((const char*)data, "state", 5) == 0) {
-    char world_dump[2048];
-    simulation_dump(&this->simulation, world_dump, sizeof(world_dump));
-    client_session_send(session, world_dump, strlen(world_dump), NULL);
-  }
-  else if (strncmp((const char*)data, "step", 4) == 0) {
-    simulation_step(&this->simulation);
-    client_session_send(session, "OK\n", 3, NULL);
-  }
-  else if (strncmp((const char*)data, "quit", 4) == 0) {
-    client_session_close(session);
-    printf("[server] client exited.\n");
-  }
-  else {
-    const char* err = "ERR: unknown command\n";
-    client_session_send(session, err, strlen(err), NULL);
-  }
+    pthread_t tr, ts, tsim;
+    pthread_create(&tr,NULL,server_recv_thread,&ctx);
+    pthread_create(&ts,NULL,server_send_thread,&ctx);
+    pthread_create(&tsim,NULL,simulation_thread,&ctx);
+
+    pthread_join(tr,NULL);
+    pthread_join(ts,NULL);
+    pthread_join(tsim,NULL);
 }
 

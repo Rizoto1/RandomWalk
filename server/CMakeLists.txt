@@ -1,9 +1,6 @@
 add_executable(server)
 
 target_sources(server PRIVATE
-  clientConnectionManager.c
-  clientSession.c
-  ipcContext.c
   server.c
 )
 
@@ -17,6 +14,7 @@ target_compile_options(server PUBLIC
 target_link_libraries(server PUBLIC
   pthread
   game
+  ipc
 )
 
 target_include_directories(server PRIVATE
