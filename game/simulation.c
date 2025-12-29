@@ -38,6 +38,9 @@ void sim_destroy(simulation_t* this) {
   this->fSavePath = NULL;
   free(this->pointStats);
   this->pointStats = NULL;
+
+  walker_destroy(&this->walker);
+  w_destroy(&this->world);
 }
 
 static void increment_positions(world_t* w, position_t* p) {
