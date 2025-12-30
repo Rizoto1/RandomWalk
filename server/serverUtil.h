@@ -19,9 +19,4 @@ typedef struct {
     int cur, total, w, h;
 } packet_header_t;
 
-#define MSG_STOP "STOP"
-#define MSG_GET  "GET"
-#define MSG_INTER "INTER"
-#define MSG_SUM "SUM"
-
 #endif

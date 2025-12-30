@@ -54,7 +54,7 @@ void* client_thread_send(void* arg) {
         char c = getchar();
         if (c == '\n') continue;
 
-        socket_send(&ctx->sock, &c, sizeof(c));
+        socket_send(ctx->socket, &c, sizeof(c));
 
         if (c == 'q') {         // user requests quit
             atomic_store(ctx->running, 0);
@@ -63,12 +63,32 @@ void* client_thread_send(void* arg) {
     return NULL;
 }
 
+void newGame() {
+
+}
+
+void connectToGame() {
+
+}
+
+void continueInGame() {
+
+}
+
+void end() {
+
+}
+
+void mainMenu() {
+  return;
+}
+
 
 /**
  * MAIN - initializes client and launches send + receive threads
  */
 int main(int argc, char** argv) {
-    const char* ip = "127.0.0.1";
+    /*const char* ip = "127.0.0.1";
     int port = 7777;
 
     if (argc >= 2) ip   = argv[1];
@@ -78,10 +98,10 @@ int main(int argc, char** argv) {
     atomic_init(&running, 1);
 
     // create socket connection
-    Socket sock = socket_init_client(ip, port);
+    socket_t sock = socket_init_client(ip, port);
 
     // build context
-    client_context_t ctx = { sock, &running };
+    client_context_t ctx = { 3, NULL, NULL, &sock, &running };
 
     pthread_t tRecv, tSend;
     pthread_create(&tRecv, NULL, client_thread_receive, &ctx);
@@ -91,7 +111,7 @@ int main(int argc, char** argv) {
     pthread_join(tSend, NULL);
     pthread_join(tRecv, NULL);
 
-    socket_close(&sock);
+    socket_close(&sock);*/
     return 0;
 }
 
