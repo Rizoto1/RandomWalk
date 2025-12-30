@@ -13,8 +13,16 @@
 #include <unistd.h>
 
 void* server_recv_thread(void* arg) {
-  ServerCtx* ctx = arg;
-  char buf[64];
+  server_ctx_t* ctx = arg;char cmd;
+  while (atomic_load(ctx->running)) {
+    socket_recv(ctx->sock, &cmd, sizeof(cmd));
+    switch(cmd) {
+      case 's':  ctx->sim->interactive = 1; break;
+      case 'u':  ctx->sim->interactive = 0; break;
+      case 'q':  atomic_store(ctx->running, 0); break;
+    }
+  }
+  /*char buf[64];
 
   while(*ctx->running) {
     if(ctx->type==0) pipe_recv(ctx->pipe,buf,64);
@@ -24,15 +32,30 @@ void* server_recv_thread(void* arg) {
     if(strcmp(buf,"STOP")==0) *ctx->running = 0;
     if(strcmp(buf,"MODE_INTER")==0) ctx->sim->interactive = 1;
     if(strcmp(buf,"MODE_SUM")==0)   ctx->sim->interactive = 0;
-  }
+  }*/
   return NULL;
 }
 
 //TODO
 //remake so that it sends curRep, Rep, whoel CelStat 1d array to clients
 void* server_send_thread(void* arg) {
-  ServerCtx* ctx = arg;
-  char message[256];
+  server_ctx_t* c = arg;
+  int size = c->sim->world.width * c->sim->world.height * sizeof(double) * 2;
+  double* buf = malloc(size);
+
+  while (atomic_load(c->running)) {
+    packet_header_t h = { c->sim->currentReplication, c->sim->replications, c->sim->world.width, c->sim->world.height };
+    socket_send(c->sock, &h, sizeof(h));
+
+    for (int i=0;i<c->sim->world.width * c->sim->world.height;i++) {
+      buf[i*2]   = ct_avg_steps(&c->sim->pointStats[i], c->sim->replications);
+      buf[i*2+1] = ct_reach_center_prob(&c->sim->pointStats[i], c->sim->replications);
+    }
+    socket_send(c->sock, buf, size);
+    usleep(300000);
+  }
+  free(buf);
+  /*char message[256];
 
   while(*ctx->running) {
     sprintf(message,"%d/%d",ctx->sim->currentReplication,ctx->sim->replications);
@@ -42,12 +65,12 @@ void* server_send_thread(void* arg) {
     if(ctx->type==1) shm_write(ctx->shm,&ctx->sim->currentReplication); // 🔁 SHM nám posiela len číslo
 
     sleep(1);
-  }
+  }*/
   return NULL;
 }
 
 void* simulation_thread(void* arg) {
-  ServerCtx* ctx = arg;
+  server_ctx_t* ctx = arg;
 
   while(*ctx->running) {
     sim_run(ctx->sim, ctx->running);
@@ -68,7 +91,7 @@ int main(int argc, char** argv) {
   double down = strtod(argv[4], NULL);
   double right = strtod(argv[5], NULL);
   double left = strtod(argv[6], NULL);
- 
+
   walker_t walker;
   if (!walker_init(&walker, up, down, right, left)) {
     perror("Server: walker init failed\n");
@@ -84,7 +107,7 @@ int main(int argc, char** argv) {
     perror("Server: world init failed\n");
     return 1;
   }
-  
+
   trajectory_t trajectory;
   trajectory_t* p_trajectory = NULL;
   int viewMode = atoi(argv[11]);
@@ -103,22 +126,22 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  ServerCtx ctx = {0};
+  server_ctx_t ctx = {0};
   ctx.running = &running;
   ctx.sim = &sim;
 
-  if(strcmp(argv[1],"pipe")==0) {
+  /*if(strcmp(argv[1],"pipe")==0) {
     pipe_t p = pipe_init_server(argv[2]);
     ctx.pipe = malloc(sizeof(pipe_t)); *ctx.pipe = p; ctx.type = 0;
-  }
+  }*/
   if(strcmp(argv[1],"sock")==0) {
     socket_t s = socket_init_server(atoi(argv[2]));
     ctx.sock = malloc(sizeof(socket_t)); *ctx.sock = s; ctx.type = 2;
   }
-  if(strcmp(argv[1],"shm")==0) {
+  /*if(strcmp(argv[1],"shm")==0) {
     shm_t s = shm_init_server(atoi(argv[2]), &sim);
     ctx.shm = malloc(sizeof(shm_t)); *ctx.shm = s; ctx.type = 1;
-  }
+  }*/
 
   pthread_t tr, ts, tsim;
   pthread_create(&tr,NULL,server_recv_thread,&ctx);

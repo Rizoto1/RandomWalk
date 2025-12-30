@@ -13,7 +13,11 @@ typedef struct {
     socket_t* sock;
     simulation_t* sim;
     atomic_bool* running;
-} ServerCtx;
+} server_ctx_t;
+
+typedef struct {
+    int cur, total, w, h;
+} packet_header_t;
 
 #define MSG_STOP "STOP"
 #define MSG_GET  "GET"
