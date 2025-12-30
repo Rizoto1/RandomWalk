@@ -23,6 +23,5 @@ void w_normalize(world_t* this, position_t* p);
 void w_create_obstacles(world_t* this, double obstaclePercantage);
 int w_load_from_file(world_t* this, const char* f);
 int w_save_to_file(world_t* this, const char* f);
-static void w_all_nodes_reachable(world_t* this);
 
 #endif //WORLD_H

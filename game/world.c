@@ -35,6 +35,67 @@ void w_destroy(world_t* this) {
 }
 
 /*
+ * This function goes searches the whole map using BFS. 
+ * If some non obstacles points have visited attribute set to 0 it means they are unreachable.
+ * For simplicity reasons these points are replaced as an obstacle.
+ *
+ * Created with help from AI.
+ */
+static void w_all_nodes_reachable(world_t* this) {
+  if (!this) return;
+
+  int width = this->width;
+  int height = this->height;
+  position_t centerPos = {(int)floor((double)this->width / 2), (int)floor((double)this->height / 2)};
+
+  _Bool **visited = malloc(height * sizeof(_Bool*));
+  for (int y = 0; y < height; y++) {
+    visited[y] = calloc(width, sizeof(_Bool));
+  }
+
+  // BFS from center
+  position_t* queue = malloc(width * height * sizeof(position_t));
+  int head = 0, tail = 0;
+
+  if (!w_in_obstacle(this, &centerPos)) {
+    visited[centerPos.y][centerPos.x] = 1;
+    queue[tail++] = centerPos;
+  }
+
+  while (head < tail) {
+    position_t p = queue[head++];
+    int dirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
+    for (int i = 0; i < 4; i++) {
+      int nx = p.x + dirs[i][0];
+      int ny = p.y + dirs[i][1];
+      if (nx >= 0 && nx < width &&
+        ny >= 0 && ny < height &&
+        !visited[ny][nx] &&
+        !w_in_obstacle(this, &(position_t){nx,ny}))
+      {
+        visited[ny][nx] = 1;
+        queue[tail++] = (position_t){nx, ny};
+      }
+    }
+  }
+
+  // FIX: mark unreachable non-obstacles as obstacles
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      if (!visited[y][x]) {
+        this->obstacles[y * width + x] = 1;
+      }
+    }
+  }
+
+  // free memory
+  for (int y = 0; y < height; y++)
+    free(visited[y]);
+  free(visited);
+  free(queue);
+}
+
+/*
  * if position is in obstacle in the world return 1,
  * otherwise 0
  */
@@ -213,63 +274,3 @@ int w_save_to_file(world_t* this, const char* fPath) {
   return 1;
 }
 
-/*
- * This function goes searches the whole map using BFS. 
- * If some non obstacles points have visited attribute set to 0 it means they are unreachable.
- * For simplicity reasons these points are replaced as an obstacle.
- *
- * Created with help from AI.
- */
-static void w_all_nodes_reachable(world_t* this) {
-  if (!this) return;
-
-  int width = this->width;
-  int height = this->height;
-  position_t centerPos = {(int)floor((double)this->width / 2), (int)floor((double)this->height / 2)};
-
-  _Bool **visited = malloc(height * sizeof(_Bool*));
-  for (int y = 0; y < height; y++) {
-    visited[y] = calloc(width, sizeof(_Bool));
-  }
-
-  // BFS from center
-  position_t* queue = malloc(width * height * sizeof(position_t));
-  int head = 0, tail = 0;
-
-  if (!w_in_obstacle(this, &centerPos)) {
-    visited[centerPos.y][centerPos.x] = 1;
-    queue[tail++] = centerPos;
-  }
-
-  while (head < tail) {
-    position_t p = queue[head++];
-    int dirs[4][2] = {{1,0},{-1,0},{0,1},{0,-1}};
-    for (int i = 0; i < 4; i++) {
-      int nx = p.x + dirs[i][0];
-      int ny = p.y + dirs[i][1];
-      if (nx >= 0 && nx < width &&
-        ny >= 0 && ny < height &&
-        !visited[ny][nx] &&
-        !w_in_obstacle(this, &(position_t){nx,ny}))
-      {
-        visited[ny][nx] = 1;
-        queue[tail++] = (position_t){nx, ny};
-      }
-    }
-  }
-
-  // FIX: mark unreachable non-obstacles as obstacles
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      if (!visited[y][x]) {
-        this->obstacles[y * width + x] = 1;
-      }
-    }
-  }
-
-  // free memory
-  for (int y = 0; y < height; y++)
-    free(visited[y]);
-  free(visited);
-  free(queue);
-}
