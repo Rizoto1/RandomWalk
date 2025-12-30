@@ -41,6 +41,7 @@ void sim_destroy(simulation_t* this) {
 
   walker_destroy(&this->walker);
   w_destroy(&this->world);
+  trajectory_destroy(this->trajectory);
 }
 
 static void increment_positions(world_t* w, position_t* p) {

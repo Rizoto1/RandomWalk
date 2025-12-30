@@ -6,6 +6,9 @@
 #include <ipc/ipcShmSem.h>
 #include <ipc/ipcSocket.h>
 #include "game/simulation.h"
+#include "game/utility.h"
+#include "game/walker.h"
+#include "game/world.h"
 #include "serverUtil.h"
 #include <unistd.h>
 
@@ -54,29 +57,67 @@ void* simulation_thread(void* arg) {
   return NULL;
 }
 
-//argc size 1(file path) + 2(ipc) + 4 (walker) + 4 (world) + 1(trajectory) + 1(viewmode) + 3(simulation)  
+//argc size 1(file path) + 2(ipc) + 4 (walker) + 4 (world) + 1(viewmode) + 3(simulation)  
 int main(int argc, char** argv) {
+  if (argc < 15) {
+    perror("Server: invalid ammount of parameters");
+    return 1;
+  }
+
+  double up = strtod(argv[3], NULL);
+  double down = strtod(argv[4], NULL);
+  double right = strtod(argv[5], NULL);
+  double left = strtod(argv[6], NULL);
+ 
+  walker_t walker;
+  if (!walker_init(&walker, up, down, right, left)) {
+    perror("Server: walker init failed\n");
+    return 1;
+  }
+
+  world_t world;
+  int width = atoi(argv[7]);
+  int height = atoi(argv[8]);
+  int worldType = atoi(argv[9]);
+  int obstaclePercantage = atoi(argv[10]);
+  if (!w_init(&world, width, height, (world_type_t)worldType, obstaclePercantage)) {
+    perror("Server: world init failed\n");
+    return 1;
+  }
+  
+  trajectory_t trajectory;
+  trajectory_t* p_trajectory = NULL;
+  int viewMode = atoi(argv[11]);
+  int k = atoi(argv[13]);
+
+  if (viewMode == INTERACTIVE) {
+    trajectory_init(&trajectory, k);
+    p_trajectory = &trajectory;
+  }
+
+  int replications = atoi(argv[12]);
   atomic_bool running = 1;
   simulation_t sim;
-  if (!sim_init(simulation_t *this, walker_t walker, world_t world, int replications, int k, trajectory_t *trajectory, const char *fSavePath)) {
-
+  if (!sim_init(&sim, walker, world, replications, k, p_trajectory, argv[14])) {
+    perror("Server: sim init failed\n");
+    return 1;
   }
 
   ServerCtx ctx = {0};
   ctx.running = &running;
-  ctx.sim = sim;
+  ctx.sim = &sim;
 
   if(strcmp(argv[1],"pipe")==0) {
-    Pipe p = pipe_init_server(argv[2]);
-    ctx.pipe = malloc(sizeof(Pipe)); *ctx.pipe = p; ctx.type = 0;
+    pipe_t p = pipe_init_server(argv[2]);
+    ctx.pipe = malloc(sizeof(pipe_t)); *ctx.pipe = p; ctx.type = 0;
   }
   if(strcmp(argv[1],"sock")==0) {
-    Socket s = socket_init_server(atoi(argv[2]));
-    ctx.sock = malloc(sizeof(Socket)); *ctx.sock = s; ctx.type = 2;
+    socket_t s = socket_init_server(atoi(argv[2]));
+    ctx.sock = malloc(sizeof(socket_t)); *ctx.sock = s; ctx.type = 2;
   }
   if(strcmp(argv[1],"shm")==0) {
-    Shm s = shm_init_server(atoi(argv[2]), sim);
-    ctx.shm = malloc(sizeof(Shm)); *ctx.shm = s; ctx.type = 1;
+    shm_t s = shm_init_server(atoi(argv[2]), &sim);
+    ctx.shm = malloc(sizeof(shm_t)); *ctx.shm = s; ctx.type = 1;
   }
 
   pthread_t tr, ts, tsim;
@@ -87,5 +128,7 @@ int main(int argc, char** argv) {
   pthread_join(tr,NULL);
   pthread_join(ts,NULL);
   pthread_join(tsim,NULL);
+
+  sim_destroy(&sim);
 }
 
