@@ -1,44 +1,51 @@
-#include "ipcSocket.h"
-#include <arpa/inet.h>
-#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+
+typedef struct {
+    int fd;
+} socket_t;
 
 socket_t socket_init_server(int port) {
     socket_t s;
-    s.server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in a = {0};
-    a.sin_family = AF_INET;
-    a.sin_port = htons(port);
-    a.sin_addr.s_addr = INADDR_ANY;
-    bind(s.server_fd,(void*)&a,sizeof(a));
-    listen(s.server_fd,5);
-    s.conn_fd = accept(s.server_fd,NULL,NULL);
+    int srv = socket(AF_INET, SOCK_STREAM, 0);
+    if (srv < 0) exit(1);
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    bind(srv, (struct sockaddr*)&addr, sizeof(addr));
+    listen(srv, 1);
+
+    s.fd = accept(srv, NULL, NULL);
+    close(srv);
     return s;
 }
 
-socket_t socket_init_client(const char* ip, int port) {
+socket_t socket_init_client(const char* addrStr, int port) {
     socket_t s;
-    struct sockaddr_in a = {0};
-    s.server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    a.sin_family = AF_INET;
-    a.sin_port = htons(port);
-    a.sin_addr.s_addr = inet_addr(ip);
-    connect(s.server_fd,(void*)&a,sizeof(a));
-    s.conn_fd = s.server_fd;
+    s.fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr;
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    inet_pton(AF_INET, addrStr, &addr.sin_addr);
+
+    if (connect(s.fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) exit(2);
     return s;
 }
 
-void socket_send(socket_t* s, const char* msg) {
-    send(s->conn_fd, msg, strlen(msg), 0);
+void socket_send(socket_t* s, const void* buf, size_t len) {
+    send(s->fd, buf, len, 0);
 }
 
-void socket_recv(socket_t* s, char* buff, int size) {
-    int r = recv(s->conn_fd, buff, size, 0);
-    buff[r] = 0;
+void socket_recv(socket_t* s, void* buf, size_t len) {
+    recv(s->fd, buf, len, 0);
 }
 
-void socket_close(socket_t* s) {
-    close(s->conn_fd);
-    close(s->server_fd);
-}
+void socket_close(socket_t* s) { close(s->fd); }
 

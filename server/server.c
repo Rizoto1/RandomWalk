@@ -130,5 +130,8 @@ int main(int argc, char** argv) {
   pthread_join(tsim,NULL);
 
   sim_destroy(&sim);
+  walker_destroy(&walker);
+  w_destroy(&world);
+  trajectory_destroy(p_trajectory);
 }
 
