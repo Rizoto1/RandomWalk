@@ -13,7 +13,8 @@
 #include <unistd.h>
 
 void* server_recv_thread(void* arg) {
-  server_ctx_t* ctx = arg;char cmd;
+  server_ctx_t* ctx = arg;
+  char cmd;
   while (atomic_load(ctx->running)) {
     socket_recv(ctx->sock, &cmd, sizeof(cmd));
     switch(cmd) {
