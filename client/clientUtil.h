@@ -7,6 +7,8 @@
 #include <ipc/ipcShmSem.h>
 #include <stdio.h>
 
+#define PORT 6666
+
 typedef struct {
     int type; // 0=pipe,1=shm,2=sock
     pipe_t* pipe;
@@ -22,4 +24,8 @@ typedef struct {
 void clear_screen() {
   printf("\033[2J\033[1;1H");
 }
+
+void ctx_destroy(client_context_t* ctx);
+void ctx_init(client_context_t* ctx);
+
 #endif

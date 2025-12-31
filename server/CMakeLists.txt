@@ -2,6 +2,7 @@ add_executable(server)
 
 target_sources(server PRIVATE
   server.c
+  serverThreads.c
 )
 
 target_compile_options(server PUBLIC
