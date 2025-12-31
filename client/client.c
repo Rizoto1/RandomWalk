@@ -114,6 +114,7 @@ void simulation_menu(client_context_t* context) {
 
   context->running = 0;
   pthread_cancel(recv_th);
+  pthread_join(recv_th, NULL);
   if (context->type == 0) {
     pipe_close(context->pipe);
   } else if (context->type == 1) { 
