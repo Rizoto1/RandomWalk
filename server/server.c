@@ -12,6 +12,10 @@
 #include "serverUtil.h"
 #include <unistd.h>
 
+
+//TODO
+//jedno recv thread by malo byť na jedného používateľa
+//keďže sa budú pripájať viacerý používateľia, tak musím si uchovávať každého fd
 void* server_recv_thread(void* arg) {
   server_ctx_t* ctx = arg;
   char cmd;
@@ -38,7 +42,7 @@ void* server_recv_thread(void* arg) {
 }
 
 //TODO
-//remake so that it sends curRep, Rep, whoel CelStat 1d array to clients
+//remake so that is sends what user specified based on view mode
 void* server_send_thread(void* arg) {
   server_ctx_t* c = arg;
   int size = c->sim->world.width * c->sim->world.height * sizeof(double) * 2;
@@ -49,7 +53,7 @@ void* server_send_thread(void* arg) {
     socket_send(c->sock, &h, sizeof(h));
 
     for (int i=0;i<c->sim->world.width * c->sim->world.height;i++) {
-      buf[i*2]   = ct_avg_steps(&c->sim->pointStats[i], c->sim->replications);
+      buf[i*2]   = ct_avg_steps(&c->sim->pointStats[i]);
       buf[i*2+1] = ct_reach_center_prob(&c->sim->pointStats[i], c->sim->replications);
     }
     socket_send(c->sock, buf, size);
@@ -92,13 +96,15 @@ int main(int argc, char** argv) {
   double down = strtod(argv[4], NULL);
   double right = strtod(argv[5], NULL);
   double left = strtod(argv[6], NULL);
-
+  
+  printf("Server: Initializing walker\n");
   walker_t walker;
   if (!walker_init(&walker, up, down, right, left)) {
     perror("Server: walker init failed\n");
     return 1;
   }
 
+  printf("Server: Initializing world\n");
   world_t world;
   int width = atoi(argv[7]);
   int height = atoi(argv[8]);
@@ -115,10 +121,12 @@ int main(int argc, char** argv) {
   int k = atoi(argv[13]);
 
   if (viewMode == INTERACTIVE) {
+    printf("Server: Initializing trajectory\n");
     trajectory_init(&trajectory, k);
     p_trajectory = &trajectory;
   }
 
+  printf("Server: Initializing simulation\n");
   int replications = atoi(argv[12]);
   atomic_bool running = 1;
   simulation_t sim;
@@ -130,20 +138,27 @@ int main(int argc, char** argv) {
   server_ctx_t ctx = {0};
   ctx.running = &running;
   ctx.sim = &sim;
-
+  printf("Server: creating connection\n");
   /*if(strcmp(argv[1],"pipe")==0) {
     pipe_t p = pipe_init_server(argv[2]);
     ctx.pipe = malloc(sizeof(pipe_t)); *ctx.pipe = p; ctx.type = 0;
   }*/
   if(strcmp(argv[1],"sock")==0) {
     socket_t s = socket_init_server(atoi(argv[2]));
-    ctx.sock = malloc(sizeof(socket_t)); *ctx.sock = s; ctx.type = 2;
+    if (s.fd < 0) {
+      perror("Server: creating connection failed. Terminating server\n");
+      return 1;
+    }
+    ctx.sock = malloc(sizeof(socket_t));
+    *ctx.sock = s;
+    ctx.type = 2;
   }
   /*if(strcmp(argv[1],"shm")==0) {
     shm_t s = shm_init_server(atoi(argv[2]), &sim);
     ctx.shm = malloc(sizeof(shm_t)); *ctx.shm = s; ctx.type = 1;
   }*/
 
+  printf("Sever: starting threads\n");
   pthread_t tr, ts, tsim;
   pthread_create(&tr,NULL,server_recv_thread,&ctx);
   pthread_create(&ts,NULL,server_send_thread,&ctx);
@@ -152,7 +167,7 @@ int main(int argc, char** argv) {
   pthread_join(tr,NULL);
   pthread_join(ts,NULL);
   pthread_join(tsim,NULL);
-
+  printf("Server: simulation finished. Shutting down\n");
   sim_destroy(&sim);
   walker_destroy(&walker);
   w_destroy(&world);

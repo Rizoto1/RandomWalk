@@ -43,6 +43,6 @@ typedef struct {
   long totalSteps;
 } point_statistics_t;
 
-double ct_avg_steps(point_statistics_t* ct, int replications);
+double ct_avg_steps(point_statistics_t* ct);
 double ct_reach_center_prob(point_statistics_t* ct, int replications);
 #endif //UTILITY_H

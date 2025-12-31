@@ -7,6 +7,7 @@
 #include <time.h>
 #include <math.h>
 #include <string.h>
+#include <unistd.h>
 
 _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
 
@@ -83,6 +84,7 @@ void sim_run(simulation_t* this, atomic_bool* isRunning) {
       this->walker.pos = pos;
       sim_simulate_from(this, isRunning);
       increment_positions(&this->world, &pos);
+      usleep(200);
     }
   }
   atomic_store(isRunning, 0);
@@ -115,6 +117,11 @@ void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
     _Bool moveSuccseful = 0;
     int attempts = 0;
     while (!moveSuccseful && attempts < ATTEMPTS) {
+      if (pos_equals(p_newPos, &centerPos)) {
+        cs->reachedCenter++;
+        cs->totalSteps = cs->totalSteps + step;
+        return;
+      }
       if (!atomic_load(isRunning)) {
         perror("Simulation terminated");
         return;
@@ -142,11 +149,6 @@ void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
         this->trajectory->count++;
       }
 
-      if (pos_equals(p_newPos, &centerPos)) {
-        cs->reachedCenter++;
-        cs->totalSteps += step + 1;
-        return;
-      }
     }
   }
   return;

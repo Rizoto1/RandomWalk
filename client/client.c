@@ -23,6 +23,7 @@ void* thread_receive(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
 
   while (atomic_load(&ctx->running)) {
+    clear_screen();
     packet_header_t hdr;
     int r = socket_recv(ctx->socket, &hdr, sizeof(hdr));
     if (r <= 0) break;
@@ -120,6 +121,7 @@ snprintf(vModeBuf, sizeof(vModeBuf), "%d", viewMode);
 snprintf(replBuf, sizeof(replBuf), "%d", replications);
 snprintf(kBuf, sizeof(kBuf), "%d", k);
 
+  sleep(5);
 
   if (pid == 0) {
     // child → exec server
@@ -170,10 +172,18 @@ void newGame() {
   printf("Enter world width and height:\n");
   scanf("%d", &width);
   scanf("%d", &height);
+  if (width % 2 == 0) {
+    width++;
+  }
+  if (height % 2 ==0) {
+    height++;
+  }
   printf("Enter world type:\n");
   printf("0) Without obstacles\n");
   printf("1) With obstacles\n");
-  scanf("%d", &worldType);
+  int i_worldType = 1;
+  scanf("%d", &i_worldType);
+  worldType = (world_type_t)i_worldType;
   if (worldType < 0) {
     worldType = 0;
   } else if (worldType > 1) {
@@ -232,7 +242,9 @@ void newGame() {
   printf("Enter simulation view mode:\n");
   printf("0) Interactive - see walker trajectory\n");
   printf("1) Summary - statistical\n");
-  scanf("%d", &viewMode);
+  int i_viewMode;
+  scanf("%d", &i_viewMode);
+  viewMode = (viewmode_type_t)i_viewMode;
   if (viewMode < 0) {
     viewMode = 0;
   } else if (viewMode > 1) {
@@ -244,7 +256,7 @@ void newGame() {
   printf("1) Continue\n");
   printf("0) Exit\n");
   scanf("%d", &num);
-  if (num == 0) return;
+  //if (num == 0) return;
 
   createServer(ipc,
                up, down, right, left,
@@ -254,7 +266,22 @@ void newGame() {
 }
 
 void connectToGame() {
+  socket_t sock;
+  printf("Client: Initializing socket\n");
+  sock = socket_init_client("127.0.0.1", PORT);
+  if (sock.fd < 0) {
+    perror("Failed to join");
+    return;
+  }
 
+  printf("It works maybe?");
+
+  client_context_t ctx = {0};
+  ctx.socket = malloc(sizeof(socket_t));
+  ctx.type = 2;
+  ctx.socket->fd = sock.fd;
+  simulation_menu(&ctx);
+  free(ctx.socket);
 }
 
 void continueInGame() {
@@ -299,6 +326,7 @@ void mainMenu() {
  * MAIN - initializes client and launches send + receive threads
  */
 int main(int argc, char** argv) {
+  mainMenu();
   /*const char* ip = "127.0.0.1";
     int port = 7777;
 

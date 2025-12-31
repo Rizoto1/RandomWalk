@@ -15,6 +15,7 @@ target_link_libraries(server PUBLIC
   pthread
   game
   ipc
+  m
 )
 
 target_include_directories(server PRIVATE
