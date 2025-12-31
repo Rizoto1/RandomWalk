@@ -2,6 +2,9 @@ add_executable(client)
 
 target_sources(client PRIVATE
   client.c
+  clientThreads.c
+  clientUtil.c
+  ui.c
 )
 
 target_compile_options(client PUBLIC

@@ -21,9 +21,7 @@ typedef struct {
   int cur, total, w, h;
 } packet_header_t;
 
-void clear_screen() {
-  printf("\033[2J\033[1;1H");
-}
+void clear_screen();
 
 void ctx_destroy(client_context_t* ctx);
 void ctx_init(client_context_t* ctx);

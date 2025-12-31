@@ -16,3 +16,7 @@ void ctx_init(client_context_t* ctx) {
   ctx->shm = NULL;
   ctx->pipe = NULL;
 }
+
+void clear_screen() {
+  printf("\033[2J\033[1;1H");
+}

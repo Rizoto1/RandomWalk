@@ -5,6 +5,7 @@
 #include <ipc/ipcPipe.h>
 #include <ipc/ipcShmSem.h>
 #include <ipc/ipcSocket.h>
+#include <game/utility.h>
 
 typedef struct {
     int type; // 0=pipe,1=shm,2=sock
