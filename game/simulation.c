@@ -19,8 +19,8 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
   this->k = k;
   this->replications = replications;
   this->walker = walker;
-  this->world = world; 
-  this->pointStats = malloc(world.height * world.width * sizeof(point_statistics_t));
+  this->world = world;
+  this->pointStats = calloc(world.height * world.width, sizeof(point_statistics_t));
   this->currentReplication = 0;
   this->trajectory = trajectory;
   if (fPath) {
@@ -39,10 +39,6 @@ void sim_destroy(simulation_t* this) {
   this->fSavePath = NULL;
   free(this->pointStats);
   this->pointStats = NULL;
-
-  walker_destroy(&this->walker);
-  w_destroy(&this->world);
-  trajectory_destroy(this->trajectory);
 }
 
 static void increment_positions(world_t* w, position_t* p) {

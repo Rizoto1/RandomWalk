@@ -175,8 +175,11 @@ int main(int argc, char** argv) {
   pthread_join(ts,NULL);
   pthread_join(tsim,NULL);
   sim_destroy(&sim);
+  free(ctx.sock);
   walker_destroy(&walker);
   w_destroy(&world);
+  if (p_trajectory) {
   trajectory_destroy(p_trajectory);
+  }
 }
 
