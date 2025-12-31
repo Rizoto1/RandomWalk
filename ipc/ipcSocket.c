@@ -3,6 +3,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/select.h>
+#include <sys/socket.h>
 
 typedef struct {
     int fd;
@@ -44,7 +46,7 @@ socket_t socket_init_client(const char* addrStr, int port) {
   }
 
   struct sockaddr_in addr;
-  memset(&addr, 0, sizeof(addr));   // ← MUST FIX
+  memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
 
@@ -65,7 +67,26 @@ void socket_send(socket_t* s, const void* buf, size_t len) {
   send(s->fd, buf, len, 0);
 }
 
+#define WAIT_SECONDS 5
+
 int socket_recv(socket_t* s, void* buf, size_t len) {
+  fd_set readfds;
+  FD_ZERO(&readfds);
+  FD_SET(s->fd, &readfds);
+
+  struct timeval tv;
+  tv.tv_sec = WAIT_SECONDS;
+  tv.tv_usec = 0;
+
+  // čaká max. timeout_ms na dáta
+  int result = select(s->fd + 1, &readfds, NULL, NULL, &tv);
+
+  if (result == 0) {
+    return -1;
+  }
+  if (result < 0) {
+    return -1;
+  }
   return recv(s->fd, buf, len, 0);
 }
 

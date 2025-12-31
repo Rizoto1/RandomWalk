@@ -19,12 +19,14 @@
 void* server_recv_thread(void* arg) {
   server_ctx_t* ctx = arg;
   char cmd;
+  printf("Server: Starting recv thread\n");
   while (atomic_load(ctx->running)) {
-    socket_recv(ctx->sock, &cmd, sizeof(cmd));
-    switch(cmd) {
-      case 's':  ctx->sim->interactive = 1; break;
-      case 'u':  ctx->sim->interactive = 0; break;
-      case 'q':  atomic_store(ctx->running, 0); break;
+    if (socket_recv(ctx->sock, &cmd, sizeof(cmd)) >= 0) {
+      switch(cmd) {
+        case 's':  ctx->sim->interactive = 1; break;
+        case 'u':  ctx->sim->interactive = 0; break;
+        case 'q':  atomic_store(ctx->running, 0); break;
+      }
     }
   }
   /*char buf[64];
@@ -38,6 +40,7 @@ void* server_recv_thread(void* arg) {
     if(strcmp(buf,"MODE_INTER")==0) ctx->sim->interactive = 1;
     if(strcmp(buf,"MODE_SUM")==0)   ctx->sim->interactive = 0;
   }*/
+  printf("Server: Terminating recv thread\n");
   return NULL;
 }
 
@@ -48,6 +51,7 @@ void* server_send_thread(void* arg) {
   int size = c->sim->world.width * c->sim->world.height * sizeof(double) * 2;
   double* buf = malloc(size);
 
+  printf("Server: Starting send thread\n");
   while (atomic_load(c->running)) {
     packet_header_t h = { c->sim->currentReplication, c->sim->replications, c->sim->world.width, c->sim->world.height };
     socket_send(c->sock, &h, sizeof(h));
@@ -71,15 +75,18 @@ void* server_send_thread(void* arg) {
 
     sleep(1);
   }*/
+  printf("Server: Terminating send thread\n");
   return NULL;
 }
 
 void* simulation_thread(void* arg) {
   server_ctx_t* ctx = arg;
 
+  printf("Server: Starting simulation\n");
   while(*ctx->running) {
     sim_run(ctx->sim, ctx->running);
   }
+  printf("Server: simulation finished. Saving to file.\n");
   sim_save_to_file(ctx->sim);
   *ctx->running = 0;
   return NULL;
@@ -88,7 +95,7 @@ void* simulation_thread(void* arg) {
 //argc size 1(file path) + 2(ipc) + 4 (walker) + 4 (world) + 1(viewmode) + 3(simulation)  
 int main(int argc, char** argv) {
   if (argc < 15) {
-    perror("Server: invalid ammount of parameters");
+    perror("Server: invalid ammount of parameters\n");
     return 1;
   }
 
@@ -96,7 +103,7 @@ int main(int argc, char** argv) {
   double down = strtod(argv[4], NULL);
   double right = strtod(argv[5], NULL);
   double left = strtod(argv[6], NULL);
-  
+
   printf("Server: Initializing walker\n");
   walker_t walker;
   if (!walker_init(&walker, up, down, right, left)) {
@@ -167,7 +174,6 @@ int main(int argc, char** argv) {
   pthread_join(tr,NULL);
   pthread_join(ts,NULL);
   pthread_join(tsim,NULL);
-  printf("Server: simulation finished. Shutting down\n");
   sim_destroy(&sim);
   walker_destroy(&walker);
   w_destroy(&world);

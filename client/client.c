@@ -14,6 +14,23 @@
 
 #define PORT 6666
 
+void ctx_destroy(client_context_t* ctx) {
+  if (!ctx) return;
+    ctx->pipe = NULL;
+    ctx->shm = NULL;
+    ctx->socket = NULL;
+  
+}
+
+void ctx_init(client_context_t* ctx) {
+  if (!ctx) return;
+  ctx->running = 1;
+  ctx->socket = NULL;
+  ctx->type = 2;
+  ctx->shm = NULL;
+  ctx->pipe = NULL;
+}
+
 /**
  * Receive thread - continuously receives packets from server
  * Packet:
@@ -21,18 +38,26 @@
  */
 void* thread_receive(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
+  printf("Clinet: Starting recv thread.\n");
 
   while (atomic_load(&ctx->running)) {
     clear_screen();
     packet_header_t hdr;
     int r = socket_recv(ctx->socket, &hdr, sizeof(hdr));
-    if (r <= 0) break;
+    if (r <= 0) {
+      printf("Client: Terminating recv thread. Opposite site closed connection\n");
+      atomic_store(&ctx->running, 0);
+      return NULL;
+    }
+    if (r != sizeof(hdr)) {
+      continue;
+    }
 
     int count = hdr.w * hdr.h * 2;
     double* buffer = malloc(count * sizeof(double));
     socket_recv(ctx->socket, buffer, count * sizeof(double));
 
-    printf("\nReplication %d / %d\n", hdr.cur, hdr.total);
+    printf("\nReplication %d / %d\n", hdr.cur + 1, hdr.total);
     for (int i = 0; i < hdr.h; i++) {
       for (int j = 0; j < hdr.w; j++) {
         int idx = (i * hdr.w + j) * 2;
@@ -43,6 +68,8 @@ void* thread_receive(void* arg) {
 
     free(buffer);
   }
+
+  printf("Client: Terminating recv thread. \n");
   return NULL;
 }
 
@@ -56,6 +83,7 @@ void* thread_receive(void* arg) {
  */
 void* thread_send(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
+  printf("Clinet: Starting send thread.\n");
 
   while (atomic_load(&ctx->running)) {
     char c = getchar();
@@ -67,6 +95,7 @@ void* thread_send(void* arg) {
       atomic_store(&ctx->running, 0);
     }
   }
+  printf("Clinet: Terminating send thread.\n");
   return NULL;
 }
 
@@ -150,7 +179,7 @@ char *args[] = {
   }
 
   client_context_t ctx;
-  memset(&ctx, 0, sizeof(ctx));
+  ctx_init(&ctx);
   ctx.type = type;
   socket_t s = socket_init_client("127.0.0.1", PORT);
   ctx.socket = &s;
@@ -162,11 +191,10 @@ char *args[] = {
     //ipc_init_shared_memory(&ctx, DEFAULT_SHM_KEY, 1024);*/
 
   simulation_menu(&ctx);
+  ctx_destroy(&ctx);
 }
 
 void newGame() {
-  _Bool validInput = 0;
-
   int width, height, obstaclePercentage = 0;
   world_type_t worldType;
   printf("Enter world width and height:\n");
@@ -204,7 +232,8 @@ void newGame() {
   printf("Enter number of replications:\n");
   scanf("%d", &replications);
 
-  double up, down, right, left;
+  double up, down, right, left = 0.25;
+  _Bool validInput = 0;
   while (!validInput) {
     printf("Enter directional probabilities in order up, down, right, left in decimal numbers: \n");
     scanf("%lf", &up);
@@ -276,12 +305,14 @@ void connectToGame() {
 
   printf("It works maybe?");
 
-  client_context_t ctx = {0};
-  ctx.socket = malloc(sizeof(socket_t));
+  client_context_t ctx;
+  ctx_init(&ctx);
+  ctx.socket = &sock;
   ctx.type = 2;
   ctx.socket->fd = sock.fd;
   simulation_menu(&ctx);
-  free(ctx.socket);
+  close(sock.fd);
+  ctx_destroy(&ctx);
 }
 
 void continueInGame() {
