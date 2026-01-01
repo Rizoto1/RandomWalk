@@ -6,6 +6,56 @@
 #include <ipc/ipcShmSem.h>
 #include <game/simulation.h>
 #include <game/walker.h>
+#include <math.h>
+
+void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
+  clear_screen();
+  int w = hdr->w;
+  int h = hdr->h;
+  int k = hdr->k;
+
+  printf("\nReplication %d / %d\n", hdr->cur + 1, hdr->total);
+  position_t center = {(int)floor((double)hdr->w / 2), (int)floor((double)hdr->h / 2)};
+
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      int idx = y * w + x;
+
+      // 1️⃣ ak je toto pozícia chodca (posledný krok)
+      if (path[k-1].x == x && path[k-1].y == y) {
+        printf(" C ");     // C = current position
+        continue;
+      }
+
+      // 2️⃣ ak je toto súčasť trajektórie (hociaké predchádzajúce x,y)
+      _Bool printed = 0;
+      for (int p = 0; p < k-1; p++) {
+        if (path[p].x == x && path[p].y == y) {
+          printf(" * ");
+          printed = 1;
+          break;
+        }
+      }
+      if (printed) continue;
+
+      // 3️⃣ prekážka
+      if (world[idx] == '1') {
+        printf(" # ");
+        continue;
+      }
+
+      // 4️⃣ stred
+      if (x == center.x && y == center.y) {
+        printf(" + ");
+        continue;
+      }
+
+      // 5️⃣ prázdne políčko
+      printf(" . ");
+    }
+    printf("\n");
+  }
+}
 
 
 static void printMM() {
@@ -41,9 +91,9 @@ void newGame() {
   } else if (worldType > 1) {
     worldType = 1;
   }
-  
+
   if (worldType == 1) {
-  printf("Enter obstacle percentage as whole number:\n");
+    printf("Enter obstacle percentage as whole number:\n");
     scanf("%d", &obstaclePercentage);
     if (obstaclePercentage < 0) {
       obstaclePercentage = 0;

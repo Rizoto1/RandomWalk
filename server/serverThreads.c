@@ -188,7 +188,7 @@ static void send_interactive(void* arg) {
     if (client->active) {
       int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(char);
       char* buf = malloc(size);
-      packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+      packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height, ctx->sim->trajectory->max };
       world_t* w = &ctx->sim->world;
       socket_send(&client->socket, &h, sizeof(h));
 
@@ -211,7 +211,7 @@ static void send_summary(void* arg) {
 
   int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
   double* buf = malloc(size);
-  packet_header_t h = {PKT_SUMMARY, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+  packet_header_t h = {PKT_SUMMARY, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height, 0 };
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   for (int c = 0; c < SERVER_CAPACITY; c++) {

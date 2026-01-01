@@ -1,7 +1,8 @@
 #include "clientThreads.h"
 #include "clientUtil.h"
-#include "game/utility.h"
-#include "game/world.h"
+#include <game/utility.h>
+#include <game/world.h>
+#include <game/walker.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -12,7 +13,40 @@
 #include <ipc/ipcShmSem.h>
 #include <game/simulation.h>
 #include <game/walker.h>
+#include "ui.h"
+#include <math.h>
 
+static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
+  int count = hdr->w * hdr->h;
+  double* buffer = malloc(count * sizeof(double));
+  socket_recv(ctx->socket, buffer, count * sizeof(double));
+
+  printf("\nReplication %d / %d\n", hdr->cur + 1, hdr->total);
+  for (int i = 0; i < hdr->h; i++) {
+    for (int j = 0; j < hdr->w; j++) {
+      int idx = (i * hdr->w + j);
+      printf("%.2f ", buffer[idx]);
+    }
+    printf("\n");
+  }
+
+  free(buffer);
+}
+
+static void recv_interactive(client_context_t* ctx, packet_header_t* hdr) {
+  int count = hdr->w * hdr->h;
+  char* buffer = malloc(count * sizeof(char));
+  socket_recv(ctx->socket, buffer, count * sizeof(char));
+
+  int k = hdr->k;
+  position_t* posBuf = malloc(k * sizeof(position_t));
+  socket_recv(ctx->socket, posBuf, k * sizeof(position_t));
+  
+  draw_interactive_map(buffer, posBuf, hdr);
+
+  free(buffer);
+  free(posBuf);
+}
 
 /**
  * Receive thread - continuously receives packets from server
@@ -32,29 +66,19 @@ void* thread_receive(void* arg) {
       atomic_store(&ctx->running, 0);
       return NULL;
     }
-    if (r != sizeof(hdr)) {
-      continue;
+
+
+    if (hdr.type == PKT_SUMMARY) {
+      recv_summary(ctx, &hdr);
+    } else {
+      recv_interactive(ctx, &hdr);
     }
-
-    int count = hdr.w * hdr.h * 2;
-    double* buffer = malloc(count * sizeof(double));
-    socket_recv(ctx->socket, buffer, count * sizeof(double));
-
-    printf("\nReplication %d / %d\n", hdr.cur + 1, hdr.total);
-    for (int i = 0; i < hdr.h; i++) {
-      for (int j = 0; j < hdr.w; j++) {
-        int idx = (i * hdr.w + j) * 2;
-        printf("(%.4f , %.4f) ", buffer[idx], buffer[idx + 1]);
-      }
-      printf("\n");
-    }
-
-    free(buffer);
   }
 
   printf("Client: Terminating recv thread. \n");
   return NULL;
 }
+
 /**
  * Send thread - reads commands from keyboard and sends to server
  * Commands:
@@ -64,21 +88,28 @@ void* thread_receive(void* arg) {
  */
 void* thread_send(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
-  printf("Clinet: Starting send thread.\n");
+  printf("Client: Starting send thread.\n");
 
   while (atomic_load(&ctx->running)) {
     char c = getchar();
     if (c == '\n') continue;
 
-    socket_send(ctx->socket, &c, sizeof(c));
+    int r = socket_send(ctx->socket, &c, sizeof(c));
+
+    if (r <= 0) {
+      atomic_store(&ctx->running, 0);
+      break;
+    }
 
     if (c == 'q') {         // user requests quit
       atomic_store(&ctx->running, 0);
+      break;
     }
   }
-  printf("Clinet: Terminating send thread.\n");
+  printf("Client: Terminating send thread.\n");
   return NULL;
 }
+
 void simulation_menu(client_context_t* context) {
   pthread_t recv_th, send_th;
   context->running = 1;

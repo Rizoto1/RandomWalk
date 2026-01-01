@@ -64,8 +64,8 @@ socket_t socket_init_client(const char* addrStr, int port) {
   return s;
 }
 
-void socket_send(socket_t* s, const void* buf, size_t len) {
-  send(s->fd, buf, len, 0);
+int socket_send(socket_t* s, const void* buf, size_t len) {
+  return send(s->fd, buf, len, 0);
 }
 
 int socket_recv(socket_t* s, void* buf, size_t len) {
