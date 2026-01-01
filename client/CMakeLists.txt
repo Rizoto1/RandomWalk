@@ -18,6 +18,7 @@ target_link_libraries(client PUBLIC
   pthread
   game
   ipc
+  m
 )
 
 target_include_directories(client PRIVATE

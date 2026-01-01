@@ -32,8 +32,28 @@ socket_t socket_init_server(int port) {
 }
 
 socket_t server_accept_client(int sfd) {
-  int cfd = accept(sfd, NULL, NULL);
+  fd_set readfds;
+  FD_ZERO(&readfds);
+  FD_SET(sfd, &readfds);
+
+  struct timeval tv;
+  tv.tv_sec = WAIT_SECONDS;
+  tv.tv_usec = 0;
+
+  // čaká max. timeout_ms na dáta
+  int result = select(sfd + 1, &readfds, NULL, NULL, &tv);
   socket_t s;
+
+  if (result == 0) {
+    s.fd = 0;
+    return s;
+  }
+  if (result < 0) {
+    s.fd = -1;
+    return s;
+  }
+
+  int cfd = accept(sfd, NULL, NULL);
   s.fd = cfd;
   return s;
 }

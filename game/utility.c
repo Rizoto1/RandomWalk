@@ -26,7 +26,6 @@ void trajectory_add(trajectory_t* t, position_t p) {
 void trajectory_destroy(trajectory_t* t) {
   free(t->positions);
   t->positions = NULL;
-  free(t);
 }
 
 double ct_avg_steps(point_statistics_t* ct) {

@@ -77,12 +77,12 @@ _Bool server_init(char** argv) {
 
   //multithreading
   printf("Sever: starting threads\n");
-  pthread_t tr, ta, tsim;
-  pthread_create(&tr,NULL,server_recv_thread,&ctx);
+  pthread_t ts, ta, tsim;
+  pthread_create(&ts,NULL,server_send_thread,&ctx);
   pthread_create(&ta,NULL,server_accept_thread,&ctx);
   pthread_create(&tsim,NULL,simulation_thread,&ctx);
 
-  pthread_join(tr,NULL);
+  pthread_join(ts,NULL);
   pthread_join(ta,NULL);
   pthread_join(tsim,NULL);
   sim_destroy(&sim);
@@ -101,7 +101,8 @@ void* server_accept_thread(void* arg) {
   while (atomic_load(ctx->running)) {
     socket_t s = server_accept_client(ctx->sock->fd);
     if (s.fd > 0) {
-      client_data_t c = {0};
+      client_data_t c;
+      memset(&c, 0, sizeof(client_data_t));
       pthread_mutex_lock(&ctx->cManagement.cMutex);
 
       while (ctx->cManagement.clientCount >= SERVER_CAPACITY) {
