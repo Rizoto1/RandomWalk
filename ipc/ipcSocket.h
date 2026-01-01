@@ -5,6 +5,17 @@
 
 #define WAIT_SECONDS 5
 
+typedef enum {
+  PKT_SUMMARY,
+  PKT_INTERACTIVE_MAP,
+  PKT_INTERACTIVE_TRAJECTORY
+} packet_type_t;
+
+typedef struct {
+  packet_type_t type;
+  int cur, total, w, h;
+} packet_header_t;
+
 typedef struct {
   int fd;
 } socket_t;

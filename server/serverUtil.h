@@ -43,9 +43,6 @@ typedef struct {
   int clientPos;
 } recv_data_t;
 
-typedef struct {
-  int cur, total, w, h;
-} packet_header_t;
 
 void add_client(client_management_t* mng, client_data_t c);
 void remove_client(client_management_t* mng, int pos);

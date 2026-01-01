@@ -242,7 +242,7 @@ void* server_send_thread(void* arg) {
 
     pthread_mutex_lock(&ctx->vMutex);
     viewmode_type_t viewMode = ctx->viewMode;
-    pthread_mutex_unlock(&ctx->vMutex);
+    pthread_mutex_unlock(&ctx->vMutex); 
 
     if(viewMode == INTERACTIVE) {
       send_interactive(arg);

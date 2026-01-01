@@ -13,6 +13,7 @@
 #include <game/simulation.h>
 #include <game/walker.h>
 
+
 /**
  * Receive thread - continuously receives packets from server
  * Packet:
