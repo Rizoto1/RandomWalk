@@ -177,28 +177,33 @@ void* server_recv_thread(void* arg) {
   return NULL;
 }
 
+//maybe I need to add another mutex when I am read trajectory might cause errors
 static void send_interactive(void* arg) {
   server_ctx_t* ctx = arg;
-
-  int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
-  double* buf = malloc(size);
-  packet_header_t h = { ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   for (int c = 0; c < SERVER_CAPACITY; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
+
     if (client->active) {
+      int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(char);
+      char* buf = malloc(size);
+      packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+      world_t* w = &ctx->sim->world;
       socket_send(&client->socket, &h, sizeof(h));
+
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
-        buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
+        buf[i] = w->obstacles[i];
       }
-      socket_send(ctx->sock, buf, size);
+      socket_send(&client->socket, buf, size);
+      free(buf);
+
+      size = sizeof(position_t) * ctx->sim->trajectory->max;
+      socket_send(&client->socket, ctx->sim->trajectory, size);
     }
   }
 
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
-  free(buf);
-
 }
 
 static void send_summary(void* arg) {
@@ -206,11 +211,12 @@ static void send_summary(void* arg) {
 
   int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
   double* buf = malloc(size);
-  packet_header_t h = { ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+  packet_header_t h = {PKT_SUMMARY, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   for (int c = 0; c < SERVER_CAPACITY; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
+
     if (client->active && client->sType == AVG_MOVE_COUNT) {
       socket_send(&client->socket, &h, sizeof(h));
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
@@ -220,8 +226,9 @@ static void send_summary(void* arg) {
 
     } else if (client->active && client->sType == PROB_CENTER_REACH) {
       socket_send(&client->socket, &h, sizeof(h));
+
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
-        buf[i*2] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
+        buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
       }
       socket_send(ctx->sock, buf, size);
 
@@ -232,8 +239,6 @@ static void send_summary(void* arg) {
   free(buf);
 }
 
-//TODO
-//remake so that is sends what user specified based on view mode
 void* server_send_thread(void* arg) {
   server_ctx_t* ctx = arg;
 
@@ -258,7 +263,7 @@ void* server_send_thread(void* arg) {
 
     if(ctx->type==0) pipe_send(ctx->pipe,message);
     if(ctx->type==2) socket_send(ctx->sock,message);
-    if(ctx->type==1) shm_write(ctx->shm,&ctx->sim->currentReplication); // 🔁 SHM nám posiela len číslo
+    if(ctx->type==1) shm_write(ctx->shm,&ctx->sim->currentReplication);
 
     sleep(1);
   }*/
