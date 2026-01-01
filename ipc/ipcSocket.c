@@ -1,3 +1,5 @@
+#include "ipcSocket.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,35 +8,34 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 
-typedef struct {
-    int fd;
-} socket_t;
-
 socket_t socket_init_server(int port) {
-    socket_t s;
-    int srv = socket(AF_INET, SOCK_STREAM, 0);
-    if (srv < 0) exit(1);
+  socket_t s;
+  int srv = socket(AF_INET, SOCK_STREAM, 0);
+  if (srv < 0) exit(1);
 
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = INADDR_ANY;
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+  addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(srv, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+  if (bind(srv, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
     perror("IPC socket server: bind failed\n");
     s.fd = -1;
     return s;
   };
-    printf("IPC socket server: trying listen\n");
-    listen(srv, 5);
+  printf("IPC socket server: trying listen\n");
+  listen(srv, 5);
 
-    printf("IPC socket server: trying accept\n");
-    s.fd = accept(srv, NULL, NULL);
+  s.fd = srv;
+  return s;
+}
 
-    printf("IPC socket server: closing\n");
-    close(srv);
-    return s;
+socket_t server_accept_client(int sfd) {
+  int cfd = accept(sfd, NULL, NULL);
+  socket_t s;
+  s.fd = cfd;
+  return s;
 }
 
 socket_t socket_init_client(const char* addrStr, int port) {
@@ -66,8 +67,6 @@ socket_t socket_init_client(const char* addrStr, int port) {
 void socket_send(socket_t* s, const void* buf, size_t len) {
   send(s->fd, buf, len, 0);
 }
-
-#define WAIT_SECONDS 5
 
 int socket_recv(socket_t* s, void* buf, size_t len) {
   fd_set readfds;

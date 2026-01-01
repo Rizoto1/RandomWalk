@@ -40,24 +40,13 @@ _Bool server_init(char** argv) {
     return 1;
   }
 
-  //trajectory init
-  trajectory_t trajectory;
-  trajectory_t* p_trajectory = NULL;
-  int viewMode = atoi(argv[11]);
-  int k = atoi(argv[13]);
-
-  if (viewMode == INTERACTIVE) {
-    printf("Server: Initializing trajectory\n");
-    trajectory_init(&trajectory, k);
-    p_trajectory = &trajectory;
-  }
-
   //simulation init
   printf("Server: Initializing simulation\n");
   int replications = atoi(argv[12]);
+  int k = atoi(argv[13]);
   atomic_bool running = 1;
   simulation_t sim;
-  if (!sim_init(&sim, walker, world, replications, k, p_trajectory, argv[14])) {
+  if (!sim_init(&sim, walker, world, replications, k, argv[14])) {
     perror("Server: sim init failed\n");
     return 1;
   }
@@ -88,39 +77,88 @@ _Bool server_init(char** argv) {
 
   //multithreading
   printf("Sever: starting threads\n");
-  pthread_t tr, ts, tsim;
+  pthread_t tr, ta, tsim;
   pthread_create(&tr,NULL,server_recv_thread,&ctx);
-  pthread_create(&ts,NULL,server_send_thread,&ctx);
+  pthread_create(&ta,NULL,server_accept_thread,&ctx);
   pthread_create(&tsim,NULL,simulation_thread,&ctx);
 
   pthread_join(tr,NULL);
-  pthread_join(ts,NULL);
+  pthread_join(ta,NULL);
   pthread_join(tsim,NULL);
   sim_destroy(&sim);
   free(ctx.sock);
   walker_destroy(&walker);
   w_destroy(&world);
-  if (p_trajectory) {
-    trajectory_destroy(p_trajectory);
-  }
 
   return 0;
 }
 
-
-//TODO
-//jedno recv thread by malo byť na jedného používateľa
-//keďže sa budú pripájať viacerý používateľia, tak musím si uchovávať každého fd
-void* server_recv_thread(void* arg) {
+//maybe it will throw errors if i send like -1 to socket_close
+void* server_accept_thread(void* arg) {
   server_ctx_t* ctx = arg;
+
+  printf("Server: Starting accept thread\n");
+  while (atomic_load(ctx->running)) {
+    socket_t s = server_accept_client(ctx->sock->fd);
+    if (s.fd > 0) {
+      client_data_t c = {0};
+      pthread_mutex_lock(&ctx->cManagement.cMutex);
+
+      while (ctx->cManagement.clientCount >= SERVER_CAPACITY) {
+        pthread_cond_wait(&ctx->cManagement.add, &ctx->cManagement.cMutex);
+      }
+      c.id = ctx->cManagement.idCounter;
+      ctx->cManagement.idCounter++;
+      c.active = 1;
+      c.socket.fd = s.fd;
+      c.sType = AVG_MOVE_COUNT;
+      int clientPos = ctx->cManagement.clientCount;
+      add_client(&ctx->cManagement, c);
+      pthread_mutex_unlock(&ctx->cManagement.cMutex);
+      pthread_cond_broadcast(&ctx->cManagement.remove);
+    
+      pthread_t tid;
+      recv_data_t* args = malloc(sizeof(recv_data_t));
+      args->clientPos = clientPos;
+      args->ctx = arg;
+      pthread_create(&tid, NULL, server_recv_thread, args);
+      pthread_detach(tid);
+      
+    }
+  }
+  printf("Server: Terminating accept thread\n");
+  return NULL;
+}
+
+void* server_recv_thread(void* arg) {
+  recv_data_t* data = arg;
+  server_ctx_t* ctx = data->ctx;
+  int clientPos = data->clientPos;
+  client_data_t* c = &ctx->cManagement.clients[clientPos];
+  socket_t sock = c->socket;
+
+  free(arg);
+
   char cmd;
   printf("Server: Starting recv thread\n");
-  while (atomic_load(ctx->running)) {
-    if (socket_recv(ctx->sock, &cmd, sizeof(cmd)) >= 0) {
+  while (atomic_load(ctx->running) && c->active) {
+    int r = socket_recv(&sock, &cmd, sizeof(cmd));
+    if (r <= 0) {
+      pthread_mutex_lock(&ctx->cManagement.cMutex);
+      remove_client(&ctx->cManagement, clientPos);
+      pthread_mutex_unlock(&ctx->cManagement.cMutex);
+      break;
+    }
+      pthread_mutex_lock(&ctx->vMutex);
       switch(cmd) {
-        case 's':  ctx->sim->interactive = 1; break;
-        case 'u':  ctx->sim->interactive = 0; break;
-        case 'q':  atomic_store(ctx->running, 0); break;
+        case 'i':  ctx->viewMode = INTERACTIVE; pthread_mutex_unlock(&ctx->vMutex); break;
+        case 's':  ctx->viewMode = SUMMARY; pthread_mutex_unlock(&ctx->vMutex); break;
+        case 'q':  atomic_store(ctx->running, 0); pthread_mutex_unlock(&ctx->vMutex); break;
+      }
+    if (ctx->viewMode == SUMMARY) {
+      switch(cmd) {
+        case 'a': c->sType = AVG_MOVE_COUNT; break;
+        case 'b': c->sType = PROB_CENTER_REACH; break; 
       }
     }
   }
@@ -139,26 +177,80 @@ void* server_recv_thread(void* arg) {
   return NULL;
 }
 
+static void send_interactive(void* arg) {
+  server_ctx_t* ctx = arg;
+
+  int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
+  double* buf = malloc(size);
+  packet_header_t h = { ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
+  for (int c = 0; c < SERVER_CAPACITY; c++) {
+    client_data_t* client = &ctx->cManagement.clients[c];
+    if (client->active) {
+      socket_send(&client->socket, &h, sizeof(h));
+      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
+        buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
+      }
+      socket_send(ctx->sock, buf, size);
+    }
+  }
+
+  pthread_mutex_unlock(&ctx->cManagement.cMutex);
+  free(buf);
+
+}
+
+static void send_summary(void* arg) {
+  server_ctx_t* ctx = arg;
+
+  int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
+  double* buf = malloc(size);
+  packet_header_t h = { ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height };
+
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
+  for (int c = 0; c < SERVER_CAPACITY; c++) {
+    client_data_t* client = &ctx->cManagement.clients[c];
+    if (client->active && client->sType == AVG_MOVE_COUNT) {
+      socket_send(&client->socket, &h, sizeof(h));
+      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
+        buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
+      }
+      socket_send(ctx->sock, buf, size);
+
+    } else if (client->active && client->sType == PROB_CENTER_REACH) {
+      socket_send(&client->socket, &h, sizeof(h));
+      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
+        buf[i*2] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
+      }
+      socket_send(ctx->sock, buf, size);
+
+    }
+  }
+
+  pthread_mutex_unlock(&ctx->cManagement.cMutex);
+  free(buf);
+}
+
 //TODO
 //remake so that is sends what user specified based on view mode
 void* server_send_thread(void* arg) {
-  server_ctx_t* c = arg;
-  int size = c->sim->world.width * c->sim->world.height * sizeof(double) * 2;
-  double* buf = malloc(size);
+  server_ctx_t* ctx = arg;
 
   printf("Server: Starting send thread\n");
-  while (atomic_load(c->running)) {
-    packet_header_t h = { c->sim->currentReplication, c->sim->replications, c->sim->world.width, c->sim->world.height };
-    socket_send(c->sock, &h, sizeof(h));
+  while (atomic_load(ctx->running)) {
 
-    for (int i=0;i<c->sim->world.width * c->sim->world.height;i++) {
-      buf[i*2]   = ct_avg_steps(&c->sim->pointStats[i]);
-      buf[i*2+1] = ct_reach_center_prob(&c->sim->pointStats[i], c->sim->replications);
+    pthread_mutex_lock(&ctx->vMutex);
+    viewmode_type_t viewMode = ctx->viewMode;
+    pthread_mutex_unlock(&ctx->vMutex);
+
+    if(viewMode == INTERACTIVE) {
+      send_interactive(arg);
+    } else {
+      send_summary(arg);
     }
-    socket_send(c->sock, buf, size);
     usleep(300000);
   }
-  free(buf);
   /*char message[256];
 
   while(*ctx->running) {

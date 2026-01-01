@@ -13,7 +13,6 @@ typedef struct {
   point_statistics_t* pointStats;
   walker_t walker;
   world_t world;
-  _Bool interactive;
   trajectory_t* trajectory;
   const char* fSavePath;
 } simulation_t;
