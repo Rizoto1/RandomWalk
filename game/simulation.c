@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, trajectory_t* trajectory, const char* fPath) {
+_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, const char* fPath) {
 
   if (!this) {
     perror("Simulation doesnt exist");
@@ -22,7 +22,7 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
   this->world = world;
   this->pointStats = calloc(world.height * world.width, sizeof(point_statistics_t));
   this->currentReplication = 0;
-  this->trajectory = trajectory;
+  trajectory_init(this->trajectory, k);
   if (fPath) {
     this->fSavePath = fPath;
     return 1;
@@ -39,6 +39,8 @@ void sim_destroy(simulation_t* this) {
   this->fSavePath = NULL;
   free(this->pointStats);
   this->pointStats = NULL;
+  trajectory_destroy(this->trajectory);
+  this->trajectory =NULL;
 }
 
 static void increment_positions(world_t* w, position_t* p) {
@@ -140,11 +142,8 @@ void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
 
     if (moveSuccseful) {
       step++;
-      if (this->trajectory) {
-        this->trajectory->positions[this->trajectory->count] = this->walker.pos;
-        this->trajectory->count++;
-      }
-
+      this->trajectory->positions[this->trajectory->count] = this->walker.pos;
+      this->trajectory->count++;
     }
   }
   return;
