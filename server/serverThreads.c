@@ -64,6 +64,9 @@ _Bool server_init(char** argv) {
     socket_t s = socket_init_server(atoi(argv[2]));
     if (s.fd < 0) {
       perror("Server: creating connection failed. Terminating server\n");
+      w_destroy(&world);
+      walker_destroy(&walker);
+      sim_destroy(&sim);
       return 1;
     }
     ctx.sock = malloc(sizeof(socket_t));
@@ -74,7 +77,7 @@ _Bool server_init(char** argv) {
     shm_t s = shm_init_server(atoi(argv[2]), &sim);
     ctx.shm = malloc(sizeof(shm_t)); *ctx.shm = s; ctx.type = 1;
   }*/
-
+  ctx.viewMode = SUMMARY;
   //multithreading
   printf("Sever: starting threads\n");
   pthread_t ts, ta, tsim;
@@ -223,7 +226,7 @@ static void send_summary(void* arg) {
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
       }
-      socket_send(ctx->sock, buf, size);
+      socket_send(&client->socket, buf, size);
 
     } else if (client->active && client->sType == PROB_CENTER_REACH) {
       socket_send(&client->socket, &h, sizeof(h));
