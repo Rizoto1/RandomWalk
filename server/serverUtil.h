@@ -8,12 +8,18 @@
 #include <game/utility.h>
 
 #define SERVER_CAPACITY 5
+typedef enum {
+  CLIENT_UNUSED = 0,
+  CLIENT_ACTIVE = 1,
+  CLIENT_TERMINATED = 2
+} client_state_t;
 
 typedef struct {
   summary_type_t sType;
-  int id;
+  client_state_t state;
   socket_t socket;
-  _Bool active;
+  atomic_bool active;
+  pthread_t tid;
 } client_data_t;
 
 typedef struct {
@@ -23,7 +29,6 @@ typedef struct {
   pthread_mutex_t cMutex;
   pthread_cond_t add;
   pthread_cond_t remove;
-  int idCounter;
 } client_management_t;
 
 typedef struct {

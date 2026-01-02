@@ -89,7 +89,7 @@ int socket_send(socket_t* s, const void* buf, size_t len) {
 }
 
 int socket_recv(socket_t* s, void* buf, size_t len) {
-  fd_set readfds;
+  /*fd_set readfds;
   FD_ZERO(&readfds);
   FD_SET(s->fd, &readfds);
 
@@ -105,7 +105,7 @@ int socket_recv(socket_t* s, void* buf, size_t len) {
   }
   if (result < 0) {
     return -1;
-  }
+  }*/
   return recv(s->fd, buf, len, 0);
 }
 
@@ -113,3 +113,6 @@ void socket_close(socket_t* s) {
   close(s->fd);
 }
 
+void socket_shutdown(socket_t* s) {
+  shutdown(s->fd, SHUT_RDWR);
+}

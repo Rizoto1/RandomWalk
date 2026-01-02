@@ -25,6 +25,7 @@ socket_t socket_init_client(const char* ip, int port);
 int socket_send(socket_t* s, const void* buf, size_t len);
 int socket_recv(socket_t* s, void* buf, size_t size);
 void socket_close(socket_t* s);
+void socket_shutdown(socket_t* s);
 socket_t server_accept_client(int sfd);
 
 #endif

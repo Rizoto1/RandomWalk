@@ -7,7 +7,7 @@
 #include <ipc/ipcShmSem.h>
 #include <stdio.h>
 
-#define PORT 6666
+#define PORT 6469
 
 typedef struct {
     int type; // 0=pipe,1=shm,2=sock

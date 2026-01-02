@@ -16,4 +16,5 @@ void remove_client(client_management_t* mng, int pos) {
   socket_close(&mng->clients[pos].socket);
   memset(&mng->clients[pos], 0, sizeof(client_data_t));
   mng->lastRemoved = pos;
+  mng->clientCount--;
 }

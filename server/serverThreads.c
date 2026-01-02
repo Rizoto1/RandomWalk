@@ -55,6 +55,11 @@ _Bool server_init(char** argv) {
   server_ctx_t ctx = {0};
   ctx.running = &running;
   ctx.sim = &sim;
+  pthread_mutex_init(&ctx.vMutex, NULL);
+  pthread_mutex_init(&ctx.cManagement.cMutex, NULL);
+  pthread_cond_init(&ctx.cManagement.add, NULL);
+  pthread_cond_init(&ctx.cManagement.remove, NULL);
+
   printf("Server: creating connection\n");
   /*if(strcmp(argv[1],"pipe")==0) {
     pipe_t p = pipe_init_server(argv[2]);
@@ -84,15 +89,68 @@ _Bool server_init(char** argv) {
   pthread_create(&ts,NULL,server_send_thread,&ctx);
   pthread_create(&ta,NULL,server_accept_thread,&ctx);
   pthread_create(&tsim,NULL,simulation_thread,&ctx);
+  while (running) {
+    pthread_mutex_lock(&ctx.cManagement.cMutex);
+    for (int i = 0; i < SERVER_CAPACITY; i++) {
+      client_data_t* c = &ctx.cManagement.clients[i];
+      if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0) {
+        pthread_t tid = c->tid;
+        c->tid = 0;
+    pthread_mutex_unlock(&ctx.cManagement.cMutex);
+        printf("Server: Joining recv thread\n");
+        pthread_join(tid, NULL);
+    pthread_mutex_lock(&ctx.cManagement.cMutex);
+        remove_client(&ctx.cManagement, i);
+      }
+    }
+    pthread_mutex_unlock(&ctx.cManagement.cMutex);
+    usleep(10000);
+  }
+
+
+  pthread_mutex_lock(&ctx.cManagement.cMutex);
+  for (int i = 0; i < SERVER_CAPACITY; i++) {
+    client_data_t* c = &ctx.cManagement.clients[i];
+    if (c->state == CLIENT_ACTIVE) {
+      socket_shutdown(&c->socket);
+      socket_close(&c->socket);
+    }
+  }
+  pthread_mutex_unlock(&ctx.cManagement.cMutex);
+
 
   pthread_join(ts,NULL);
   pthread_join(ta,NULL);
   pthread_join(tsim,NULL);
+  pthread_mutex_lock(&ctx.cManagement.cMutex);
+
+  for (int i = 0; i < SERVER_CAPACITY; i++) {
+    client_data_t* c = &ctx.cManagement.clients[i];
+
+    if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0 && c->tid != 0) {
+      pthread_t tid = c->tid;
+      c->tid = 0;
+
+      pthread_mutex_unlock(&ctx.cManagement.cMutex);
+
+      printf("Server: Joining recv thread\n");
+      pthread_join(tid, NULL);
+
+      pthread_mutex_lock(&ctx.cManagement.cMutex);
+      remove_client(&ctx.cManagement, i);
+    }
+  }
+
+  pthread_mutex_unlock(&ctx.cManagement.cMutex);
+
   sim_destroy(&sim);
   free(ctx.sock);
   walker_destroy(&walker);
   w_destroy(&world);
-
+  pthread_mutex_destroy(&ctx.vMutex);
+  pthread_mutex_destroy(&ctx.cManagement.cMutex);
+  pthread_cond_destroy(&ctx.cManagement.add);
+  pthread_cond_destroy(&ctx.cManagement.remove);
   return 0;
 }
 
@@ -111,25 +169,27 @@ void* server_accept_thread(void* arg) {
       while (ctx->cManagement.clientCount >= SERVER_CAPACITY) {
         pthread_cond_wait(&ctx->cManagement.add, &ctx->cManagement.cMutex);
       }
-      c.id = ctx->cManagement.idCounter;
-      ctx->cManagement.idCounter++;
-      c.active = 1;
+
+      atomic_store(&c.active, 1);
+      c.state = CLIENT_ACTIVE;
       c.socket.fd = s.fd;
       c.sType = AVG_MOVE_COUNT;
       int clientPos = ctx->cManagement.clientCount;
-      add_client(&ctx->cManagement, c);
-      pthread_mutex_unlock(&ctx->cManagement.cMutex);
-      pthread_cond_broadcast(&ctx->cManagement.remove);
-    
+
       pthread_t tid;
       recv_data_t* args = malloc(sizeof(recv_data_t));
       args->clientPos = clientPos;
       args->ctx = arg;
       pthread_create(&tid, NULL, server_recv_thread, args);
-      pthread_detach(tid);
-      
+      c.tid = tid;
+
+      add_client(&ctx->cManagement, c);
+
+      pthread_mutex_unlock(&ctx->cManagement.cMutex);
+      pthread_cond_broadcast(&ctx->cManagement.remove);
     }
   }
+
   printf("Server: Terminating accept thread\n");
   return NULL;
 }
@@ -145,27 +205,52 @@ void* server_recv_thread(void* arg) {
 
   char cmd;
   printf("Server: Starting recv thread\n");
-  while (atomic_load(ctx->running) && c->active) {
+  while (atomic_load(ctx->running) && atomic_load(&c->active)) {
     int r = socket_recv(&sock, &cmd, sizeof(cmd));
     if (r <= 0) {
       pthread_mutex_lock(&ctx->cManagement.cMutex);
-      remove_client(&ctx->cManagement, clientPos);
+      atomic_store(&c->active,0);
+      c->state = CLIENT_TERMINATED;
       pthread_mutex_unlock(&ctx->cManagement.cMutex);
-      break;
+      printf("Server: Terminating recv thread\n");
+      return NULL;
     }
-      pthread_mutex_lock(&ctx->vMutex);
-      switch(cmd) {
-        case 'i':  ctx->viewMode = INTERACTIVE; pthread_mutex_unlock(&ctx->vMutex); break;
-        case 's':  ctx->viewMode = SUMMARY; pthread_mutex_unlock(&ctx->vMutex); break;
-        case 'q':  atomic_store(ctx->running, 0); pthread_mutex_unlock(&ctx->vMutex); break;
-      }
+    switch(cmd) {
+      case 'i':
+        pthread_mutex_lock(&ctx->vMutex);
+        ctx->viewMode = INTERACTIVE;
+        pthread_mutex_unlock(&ctx->vMutex);
+        break;
+      case 's':
+        pthread_mutex_lock(&ctx->vMutex);
+        ctx->viewMode = SUMMARY;
+        pthread_mutex_unlock(&ctx->vMutex);
+        break;
+      case 'q':
+        pthread_mutex_lock(&ctx->cManagement.cMutex);
+        atomic_store(&c->active,0);
+        c->state = CLIENT_TERMINATED;
+        pthread_mutex_unlock(&ctx->cManagement.cMutex);
+        printf("Server: Terminating recv thread\n");
+        return NULL;
+
+    }
     if (ctx->viewMode == SUMMARY) {
       switch(cmd) {
-        case 'a': c->sType = AVG_MOVE_COUNT; break;
-        case 'b': c->sType = PROB_CENTER_REACH; break; 
+        case 'a':
+          pthread_mutex_lock(&ctx->vMutex);
+          c->sType = AVG_MOVE_COUNT;
+          pthread_mutex_unlock(&ctx->vMutex);
+          break;
+        case 'b':
+          pthread_mutex_lock(&ctx->vMutex);
+          c->sType = PROB_CENTER_REACH;
+          pthread_mutex_unlock(&ctx->vMutex);
+          break; 
       }
     }
   }
+
   /*char buf[64];
 
   while(*ctx->running) {
@@ -177,6 +262,10 @@ void* server_recv_thread(void* arg) {
     if(strcmp(buf,"MODE_INTER")==0) ctx->sim->interactive = 1;
     if(strcmp(buf,"MODE_SUM")==0)   ctx->sim->interactive = 0;
   }*/
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
+  atomic_store(&c->active,0);
+  c->state = CLIENT_TERMINATED;
+  pthread_mutex_unlock(&ctx->cManagement.cMutex);
   printf("Server: Terminating recv thread\n");
   return NULL;
 }
@@ -252,6 +341,11 @@ void* server_send_thread(void* arg) {
     pthread_mutex_lock(&ctx->vMutex);
     viewmode_type_t viewMode = ctx->viewMode;
     pthread_mutex_unlock(&ctx->vMutex); 
+
+    if (ctx->cManagement.clientCount == 0) {
+      usleep(300000);
+      continue;
+    }
 
     if(viewMode == INTERACTIVE) {
       send_interactive(arg);

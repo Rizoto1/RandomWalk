@@ -86,7 +86,7 @@ void sim_run(simulation_t* this, atomic_bool* isRunning) {
       this->walker.pos = pos;
       sim_simulate_from(this, isRunning);
       increment_positions(&this->world, &pos);
-      usleep(200);
+      usleep(500);
     }
   }
   atomic_store(isRunning, 0);
