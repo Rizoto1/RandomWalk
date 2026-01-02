@@ -174,16 +174,17 @@ void* server_accept_thread(void* arg) {
       c.state = CLIENT_ACTIVE;
       c.socket.fd = s.fd;
       c.sType = AVG_MOVE_COUNT;
-      int clientPos = ctx->cManagement.clientCount;
+      int clientPos = add_client(&ctx->cManagement, c);
+      if (clientPos < 0) {
+        socket_close(&s);
+        pthread_mutex_unlock(&ctx->cManagement.cMutex);
+        continue;
+      }
 
-      pthread_t tid;
       recv_data_t* args = malloc(sizeof(recv_data_t));
       args->clientPos = clientPos;
-      args->ctx = arg;
-      pthread_create(&tid, NULL, server_recv_thread, args);
-      c.tid = tid;
-
-      add_client(&ctx->cManagement, c);
+      args->ctx = ctx;
+      pthread_create(&ctx->cManagement.clients[clientPos].tid, NULL, server_recv_thread, args);
 
       pthread_mutex_unlock(&ctx->cManagement.cMutex);
       pthread_cond_broadcast(&ctx->cManagement.remove);

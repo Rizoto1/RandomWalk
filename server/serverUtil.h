@@ -49,7 +49,7 @@ typedef struct {
 } recv_data_t;
 
 
-void add_client(client_management_t* mng, client_data_t c);
+int add_client(client_management_t* mng, client_data_t c);
 void remove_client(client_management_t* mng, int pos);
 
 #endif
