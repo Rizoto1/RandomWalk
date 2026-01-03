@@ -12,15 +12,18 @@ int add_client(client_management_t* mng, client_data_t c) {
     return -1; // plné
 }
 void remove_client(client_management_t* mng, int pos) {
-    if (mng->clients[pos].state == CLIENT_ACTIVE) {
+    if (mng->clients[pos].state == CLIENT_ACTIVE || mng->clients[pos].state == CLIENT_TERMINATED) {
         socket_shutdown(&mng->clients[pos].socket);
         socket_close(&mng->clients[pos].socket);
 
         mng->clients[pos].state = CLIENT_UNUSED;
         atomic_store(&mng->clients[pos].active, 0);
         mng->clients[pos].tid = 0;
+        mng->clients[pos].socket.fd = -1;
 
         mng->clientCount--;
+
+        pthread_cond_signal(&mng->add);
     }
 }
 
