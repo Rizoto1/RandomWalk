@@ -73,7 +73,7 @@ _Bool w_init(world_t* this, int width, int height, world_type_t worldType, int o
   if (width % 2 == 0) {
     width++;
   }
-  if (height % 2 ==0) {
+  if (height % 2 == 0) {
     height++;
   }
   this->width = width;

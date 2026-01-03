@@ -117,9 +117,7 @@ void simulation_menu(client_context_t* context) {
   pthread_create(&recv_th, NULL, thread_receive, context);
   pthread_create(&send_th, NULL, thread_send, context);
 
-  printf("\nSimulacia bezi. Piste prikazy:\n");
-  printf("napr. 'STOP' ukonci spojenie\n\n");
-
+  sleep(2);
   // Wait — when user types STOP → terminate
   pthread_join(send_th, NULL);
 
@@ -136,8 +134,10 @@ void simulation_menu(client_context_t* context) {
     perror("Simulation menu: invalid ipc type");
     return;
   }
+
+  sleep(2);
 }
-void createServer(int type,
+void createServer(int type, int port,
                   double up, double down, double right, double left,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
                   viewmode_type_t viewMode,
@@ -148,7 +148,7 @@ void createServer(int type,
 
   /* sprintf alebo bezpečnejší snprintf */
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
-  snprintf(portBuf, sizeof(portBuf), "%d", PORT);
+  snprintf(portBuf, sizeof(portBuf), "%d", port);
   snprintf(upBuf, sizeof(upBuf), "%lf", up);
   snprintf(downBuf, sizeof(downBuf), "%lf", down);
   snprintf(rightBuf, sizeof(rightBuf), "%lf", right);
@@ -161,13 +161,17 @@ void createServer(int type,
   snprintf(replBuf, sizeof(replBuf), "%d", replications);
   snprintf(kBuf, sizeof(kBuf), "%d", k);
 
-  sleep(5);
+  if (pid < 0) {
+    perror("fork not forking");
+    exit(1);
+}
+  sleep(1);
 
   if (pid == 0) {
     // child → exec server
     char *args[] = {
-      "./server",
-      ipcBuf,
+      "server",
+      "sock",
       portBuf,
       upBuf,
       downBuf,
@@ -183,16 +187,21 @@ void createServer(int type,
       savePath,
       NULL     // koniec pre exec()
     };
-
-    execv("./server", args);
+    execv("./server/server", args);
     perror("exec");
-    exit(1);
   }
-
+  sleep(2);
   client_context_t ctx;
   ctx_init(&ctx);
   ctx.type = type;
-  socket_t s = socket_init_client("127.0.0.1", PORT);
+  socket_t s = socket_init_client("127.0.0.1", port);
+  
+  if (s.fd <= 0) {
+    perror("Client: Connection failed\n");
+    ctx_destroy(&ctx);
+    return;
+  }
+
   ctx.socket = &s;
   /*if (type == 0)
     //ipc_init_pipe(&ctx, DEFAULT_PIPE_NAME);
@@ -200,7 +209,8 @@ void createServer(int type,
     ipc_init_socket(&ctx, DEFAULT_SOCKET_PORT);
   else
     //ipc_init_shared_memory(&ctx, DEFAULT_SHM_KEY, 1024);*/
-
+  
+  sleep(2);
   simulation_menu(&ctx);
   ctx_destroy(&ctx);
 }

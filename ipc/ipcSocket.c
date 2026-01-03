@@ -63,7 +63,7 @@ socket_t socket_init_client(const char* addrStr, int port) {
   s.fd = socket(AF_INET, SOCK_STREAM, 0);
   if (s.fd < 0) {
     perror("socket");
-    exit(1);
+    return (socket_t){-1};
   }
 
   struct sockaddr_in addr;
@@ -73,12 +73,12 @@ socket_t socket_init_client(const char* addrStr, int port) {
 
   if (inet_pton(AF_INET, addrStr, &addr.sin_addr) <= 0) {
     perror("inet_pton");
-    exit(2);
+    return (socket_t){-1};
   }
 
   if (connect(s.fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
     perror("IPC socket client: Connection failed");
-    exit(3);
+    return (socket_t){-1};
   }
 
   return s;

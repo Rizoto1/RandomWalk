@@ -7,7 +7,7 @@
 void* thread_receive(void* arg);
 void* thread_send(void* arg);
 void simulation_menu(client_context_t* context);
-void createServer(int type,
+void createServer(int type, int port,
                   double up, double down, double right, double left,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
                   viewmode_type_t viewMode,

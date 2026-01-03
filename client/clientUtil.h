@@ -17,7 +17,7 @@ typedef struct {
     atomic_bool running;
 } client_context_t;
 
-void clear_screen();
+void clear_screen(void);
 
 void ctx_destroy(client_context_t* ctx);
 void ctx_init(client_context_t* ctx);

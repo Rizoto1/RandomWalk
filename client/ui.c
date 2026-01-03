@@ -7,8 +7,12 @@
 #include <game/simulation.h>
 #include <game/walker.h>
 #include <math.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#define PADDING 
 
-void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
+void draw_interactive_map(const char* world, position_t* path, packet_header_t* hdr) {
   int w = hdr->w;
   int h = hdr->h;
   int count = hdr->count;
@@ -62,17 +66,45 @@ void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
 }
 
 
-static void printMM() {
+static void printMM(const char* msg) {
   clear_screen();
-  printf("===== RANDOM WALK SIMULATION CLIENT =====\n");
-  printf("1) New simulation\n");
-  printf("2) Connect to simulation\n");
-  printf("3) Rerun simulation\n");
-  printf("0) Exit\n");
-  printf("Choose: ");
+printf(
+        "       ██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗\n"
+        "       ██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║\n"
+        "       ██████╔╝███████║██╔██╗ ██║██║  ██║██║   ██║██╔████╔██║\n"
+        "       ██╔══██╗██╔══██║██║╚██╗██║██║  ██║██║   ██║██║╚██╔╝██║\n"
+        "       ██║  ██║██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║ ╚═╝ ██║\n"
+        "       ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝\n"
+        "\n"
+        "               ██╗    ██╗ █████╗ ██╗     ██╗  ██╗\n"
+        "               ██║    ██║██╔══██╗██║     ██║ ██╔╝\n"
+        "               ██║ █╗ ██║███████║██║     █████╔╝ \n"
+        "               ██║███╗██║██╔══██║██║     ██╔═██╗ \n"
+        "               ╚███╔███╔╝██║  ██║███████╗██║  ██╗\n"
+        "                ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝\n"
+        "\n"
+        "            ---------------------------------\n"
+        "\n"
+        "                    [ 1 ]  NEW GAME\n"
+        "                    [ 2 ]  CONNECT\n"
+        "                    [ 3 ]  RERUN\n"
+        "                    [ 0 ]  EXIT\n"
+        "\n"
+        "            ---------------------------------\n"
+    );
+  
+  
+  if (msg) {
+    msg += '\0';
+    printf(
+        "                    Error: %s",
+      msg);
+  }
+  printf(
+        "                    Choose: ");
 }
 
-void newGame() {
+void newGame(void) {
   int width, height, obstaclePercentage = 0;
   world_type_t worldType;
   printf("Enter world width and height:\n");
@@ -81,7 +113,7 @@ void newGame() {
   if (width % 2 == 0) {
     width++;
   }
-  if (height % 2 ==0) {
+  if (height % 2 == 0) {
     height++;
   }
   printf("Enter world type:\n");
@@ -138,11 +170,23 @@ void newGame() {
   printf("0) Pipe\n");
   printf("1) Semaphore\n");
   printf("2) Socket (default)\n");
-  scanf("%d", &ipc);
+  /*scanf("%d", &ipc);
   if (ipc < 0) {
     ipc = 0;
   } else if (ipc > 2) {
     ipc = 2;
+  }*/
+
+  int port = 0;
+  _Bool valid = 0;
+  while (!valid) {
+    printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
+    scanf("%d", &port); 
+    if (port >= 0 && port < 10000) {
+      valid = 1;
+      break;
+    }
+    printf("Invalid port\n");
   }
 
   viewmode_type_t viewMode;
@@ -165,23 +209,34 @@ void newGame() {
   scanf("%d", &num);
   //if (num == 0) return;
 
-  createServer(ipc,
+  createServer(ipc, port,
                up, down, right, left,
                width, height, worldType, obstaclePercentage,
                viewMode,
                replications, k, fPath); 
 }
 
-void connectToGame() {
-  socket_t sock;
-  printf("Client: Initializing socket\n");
-  sock = socket_init_client("127.0.0.1", PORT);
-  if (sock.fd < 0) {
-    perror("Failed to join");
-    return;
+void connectToGame(void) {
+  clear_screen();
+  int port;
+  _Bool valid = 0;
+  while (!valid) {
+    printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
+    scanf("%d", &port); 
+    if (port >= 0 && port < 10000) {
+      valid = 1;
+      break;
+    }
+    printf("Invalid port\n");
   }
 
-  printf("It works maybe?");
+  socket_t sock;
+  printf("Client: Initializing socket\n");
+  sock = socket_init_client("127.0.0.1", port);
+  if (sock.fd < 0) {
+    printMM("Failed to join to server.");
+    return;
+  }
 
   client_context_t ctx;
   ctx_init(&ctx);
@@ -192,29 +247,31 @@ void connectToGame() {
   close(sock.fd);
   ctx_destroy(&ctx);
 }
-void continueInGame() {
 
+void continueInGame(void) {
+  
 }
-void mainMenu() {
-  int input;
+
+void mainMenu(void) {
+  char input;
+  printMM(NULL);
   while (1) {
-    printMM();
-    scanf("%d", &input);
-    if (input == 0) {
+    scanf("%c", &input);
+    if (input == '0') {
       return;
     }
 
-    if (input == 1) {
+    if (input == '1') {
       newGame();
-    } else if (input ==2) {
+    } else if (input == '2') {
       connectToGame();
-    } else if ( input == 3) {
+    } else if ( input == '3') {
       continueInGame();
     } else {
-      printf("Invalid input\n");
+      printMM("Invalid input. \n");
     }
   }
-
+  clear_screen();
   return;
 }
 
