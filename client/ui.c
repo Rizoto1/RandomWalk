@@ -26,6 +26,11 @@ void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
         continue;
       }
 
+      if (path[0].x == x && path[0].y == y) {
+        printf(" x ");
+        continue;
+      }
+
       // 2️⃣ ak je toto súčasť trajektórie (hociaké predchádzajúce x,y)
       _Bool printed = 0;
       for (int p = 0; p < count-1; p++) {

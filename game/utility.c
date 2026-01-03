@@ -34,9 +34,15 @@ void trajectory_destroy(trajectory_t* t) {
 }
 
 double ct_avg_steps(point_statistics_t* ct) {
+  if (ct->reachedCenter == 0) {
+    return 0.0;
+  }
   return (double) ct->totalSteps / (double) ct->reachedCenter;
 }
 
 double ct_reach_center_prob(point_statistics_t* ct, int replications) {
+  if (replications == 0) {
+    return 0.0;
+  }
   return (double) ct->reachedCenter / (double) replications;
 }
