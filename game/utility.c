@@ -23,6 +23,11 @@ void trajectory_add(trajectory_t* t, position_t p) {
   t->count++;
 }
 
+void trajectory_reset(trajectory_t* t) {
+  memset(t->positions, 0, sizeof(position_t) * t->max);
+  t->count = 0;
+}
+
 void trajectory_destroy(trajectory_t* t) {
   free(t->positions);
   t->positions = NULL;

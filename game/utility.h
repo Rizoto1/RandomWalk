@@ -36,6 +36,7 @@ typedef struct {
 
 void trajectory_init(trajectory_t* t, int k);
 void trajectory_add(trajectory_t* t, position_t p);
+void trajectory_reset(trajectory_t* t);
 void trajectory_destroy(trajectory_t* t);
 
 typedef struct {

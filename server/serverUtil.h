@@ -35,7 +35,8 @@ typedef struct {
   int type; // 0=pipe,1=shm,2=sock
   viewmode_type_t viewMode;
   client_management_t cManagement;
-  pthread_mutex_t vMutex;
+  pthread_mutex_t viewMutex;
+  pthread_mutex_t simMutex;
   pipe_t* pipe;
   shm_t* shm;
   socket_t* sock;

@@ -9,12 +9,15 @@
 #include <string.h>
 #include <unistd.h>
 
+//TODO
+//for some reason sim_step gets stuck at center point and never goes further unless I change to summary
 _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, const char* fPath) {
 
   if (!this) {
     perror("Simulation doesnt exist");
     return 0;
   }
+  srand48(time(NULL));
 
   this->k = k;
   this->replications = replications;
@@ -23,6 +26,9 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
   this->pointStats = calloc(world.height * world.width, sizeof(point_statistics_t));
   this->currentReplication = 0;
   this->trajectory = malloc(sizeof(trajectory_t));
+  this->startingPoint = (position_t){0, 0};
+  this->pointsStarted = 0;
+  this->state = SIM_INIT_POINT;
   trajectory_init(this->trajectory, k);
   if (fPath) {
     this->fSavePath = fPath;
@@ -45,6 +51,10 @@ void sim_destroy(simulation_t* this) {
   this->trajectory =NULL;
 }
 
+static point_statistics_t* get_point_statistic(simulation_t* this, position_t* pos) {
+  return &this->pointStats[pos->y * this->world.width + pos->x];
+}
+
 static void increment_positions(world_t* w, position_t* p) {
   p->x++;
   if (p->x >= w->width) {
@@ -56,52 +66,11 @@ static void increment_positions(world_t* w, position_t* p) {
   }
 }
 
-void sim_run(simulation_t* this, atomic_bool* isRunning) {
-  if (!this) {
-    perror("Simulation doesnt exist");
-    return;
-  }
-
-  srand48(time(NULL));
-  position_t pos = {0, 0};
-  long points = this->world.height * this->world.width;
-  for (; this->currentReplication < this->replications; this->currentReplication++) {
-    if (!atomic_load(isRunning)) {
-      perror("Simulation terminated");
-      return;
-    }
-    pos.x = 0;
-    pos.y = 0;
-    for (long c = 0; c < points; c++) {
-      if (!atomic_load(isRunning)) {
-        perror("Simulation terminated");
-        return;
-      }
-      if (w_in_obstacle(&this->world, &pos)) {
-        increment_positions(&this->world, &pos);
-        continue;
-      }
-      memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
-      this->trajectory->count = 0;
-      this->walker.pos = pos;
-      sim_simulate_from(this, isRunning);
-      increment_positions(&this->world, &pos);
-      usleep(500);
-    }
-  }
-  atomic_store(isRunning, 0);
-}
-
-static point_statistics_t* get_point_statistic(simulation_t* this, position_t* pos) {
-  return &this->pointStats[pos->y * this->world.width + pos->x];
-}
-
-#define ATTEMPTS 10
-
-/*
+/*/*
  * simulates a single replication.
 */
-void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
+/*
+static void sim_create_trajectory(simulation_t* this, int max) {
   if (!this) {
     perror("Simulation doesnt exist");
     return;
@@ -111,21 +80,15 @@ void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
   point_statistics_t* cs = get_point_statistic(this, &this->walker.pos);
   position_t newPos = this->walker.pos;
   position_t* p_newPos = &newPos;
-  for (int step = 0; step < this->k;) {
-    if (!atomic_load(isRunning)) {
-      perror("Simulation terminated");
-      return;
-    }
+  for (; this->trajectory->count < max;) {
     _Bool moveSuccseful = 0;
     int attempts = 0;
     while (!moveSuccseful && attempts < ATTEMPTS) {
       if (pos_equals(p_newPos, &centerPos)) {
         cs->reachedCenter++;
-        cs->totalSteps = cs->totalSteps + step;
-        return;
-      }
-      if (!atomic_load(isRunning)) {
-        perror("Simulation terminated");
+        cs->totalSteps = cs->totalSteps + this->trajectory->count - 1;
+        trajectory_add(this->trajectory, centerPos);
+        this->trajectory->count = 0;
         return;
       }
       attempts++;
@@ -145,14 +108,225 @@ void sim_simulate_from(simulation_t* this, const atomic_bool* isRunning) {
     }
 
     if (moveSuccseful) {
-      step++;
-      this->trajectory->positions[this->trajectory->count] = this->walker.pos;
-      this->trajectory->count++;
+      trajectory_add(this->trajectory, this->walker.pos);
     }
   }
   return;
 }
+*/
 
+static int sim_create_trajectory(simulation_t* this) {
+  if (!this || !this->trajectory) {
+    perror("Simulation doesnt exist");
+    return -1;
+  }
+
+  position_t center = {(int)floor((double)this->world.width / 2), (int)floor((double)this->world.height / 2)};
+
+  position_t newPos = this->walker.pos;
+    /* dosiahnutý stred */
+    if (pos_equals(&newPos, &center)) {
+      point_statistics_t* cs =
+        get_point_statistic(this, &this->startingPoint);
+
+      cs->reachedCenter++;
+      cs->totalSteps = cs->totalSteps + this->trajectory->count - 1;
+
+      return 1;
+    }
+  int attempts = 0;
+
+  while (attempts++ < ATTEMPTS) {
+
+    walker_move(&this->walker, &newPos, drand48());
+
+    if (!w_is_inside_boundaries(&this->world, &newPos)) {
+      w_normalize(&this->world, &newPos);
+    }
+
+    if (w_in_obstacle(&this->world, &newPos)) {
+      continue;
+    }
+
+    /* úspešný krok */
+    this->walker.pos = newPos;
+    trajectory_add(this->trajectory, newPos);
+
+
+    return 0;
+  }
+
+  /* nepodarilo sa pohnúť (zriedkavé) */
+  return 0;
+}
+
+
+int sim_run_rep(simulation_t* this) {
+  if (!this) return -1;
+  
+  int result = 0;
+
+  do {
+    result = sim_step(this);
+  }
+  while (result == 0);
+
+  return result;
+}
+
+
+int sim_step(simulation_t* s) {
+  if (!s) return -1;
+
+  long totalPoints = s->world.width * s->world.height;
+
+  switch (s->state) {
+
+    case SIM_INIT_POINT:
+      while (w_in_obstacle(&s->world, &s->startingPoint)) {
+        increment_positions(&s->world, &s->startingPoint);
+        s->pointsStarted++;
+
+        if (s->pointsStarted >= totalPoints) {
+          s->state = SIM_NEXT_REPLICATION;
+          return 0;
+        }
+      }
+      if (s->pointsStarted >= totalPoints) {
+        s->state = SIM_NEXT_REPLICATION;
+        return 0;
+      }
+
+      trajectory_reset(s->trajectory);
+      trajectory_add(s->trajectory, s->startingPoint);
+      s->walker.pos = s->startingPoint;
+      s->state = SIM_WALKING;
+      return 0;
+
+    case SIM_WALKING:
+      if (sim_create_trajectory(s) || s->trajectory->count >= s->k) {
+        s->state = SIM_NEXT_POINT;
+      }
+      return 0;
+
+    case SIM_NEXT_POINT:
+      s->pointsStarted++;
+      increment_positions(&s->world, &s->startingPoint);
+      s->state = SIM_INIT_POINT;
+      return 0;
+
+    case SIM_NEXT_REPLICATION:
+      s->currentReplication++;
+      if (s->currentReplication >= s->replications) {
+        s->state = SIM_DONE;
+      } else {
+        s->pointsStarted = 0;
+        s->startingPoint = (position_t){0,0};
+        s->state = SIM_INIT_POINT;
+      }
+      return 1;
+
+    case SIM_DONE:
+      return 2;
+  }
+
+  return 0;
+}
+
+
+/*
+int sim_run_rep(simulation_t* this) {
+  if (!this) {
+    perror("Simulation doesnt exist");
+    return -1;
+  }
+  //if the whole trajectory was filled (the starting point trajectory was completed)
+  if (this->trajectory->count >= this->k) {
+    this->pointsStarted++;
+    this->trajectory->count = 0;
+    memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
+    increment_positions(&this->world, &this->startingPoint);
+  }
+
+  long points = this->world.height * this->world.width;
+
+  for (; this->pointsStarted < points;) {
+    while (w_in_obstacle(&this->world, &this->startingPoint)) {
+      this->pointsStarted++;
+      increment_positions(&this->world, &this->startingPoint);
+    }
+
+    //if the trajectory is reset
+    if (this->trajectory->count == 0) {
+      trajectory_add(this->trajectory, this->startingPoint);
+    }
+
+    this->pointsStarted++;
+    this->walker.pos = this->trajectory->positions[this->trajectory->count - 1];
+    sim_create_trajectory(this, this->k);
+    memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
+    this->trajectory->count = 0;
+    increment_positions(&this->world, &this->startingPoint);
+
+  }
+  this->currentReplication++;
+  this->pointsStarted = 0;
+  this->startingPoint = (position_t){0,0};
+  memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
+
+  if (this->currentReplication == this->replications) {
+    return 1;
+  }
+
+  return 0;
+}
+*/
+/*
+int sim_step(simulation_t* this) {
+  if (!this) {
+    perror("Simulation doesnt exist");
+    return -1;
+  }
+
+  //if the whole trajectory was filled (the starting point trajectory was completed)
+  if (this->trajectory->count >= this->k) {
+    this->pointsStarted++;
+    this->trajectory->count = 0;
+    memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
+    increment_positions(&this->world, &this->startingPoint);
+  }
+
+  long points = this->world.height * this->world.width;
+
+  //if the whole map was completed (replication started from each non obstacle point)
+  if (this->pointsStarted == points) {
+    this->currentReplication++;
+    this->pointsStarted = 0;
+    memset(this->trajectory->positions, 0, sizeof(position_t) * this->trajectory->max);
+    this->startingPoint = (position_t){0,0};
+  }
+
+  if (this->currentReplication == this->replications) {
+    return 1;
+  }
+
+  //while there is obstacle in new starting position go to next
+  while (w_in_obstacle(&this->world, &this->startingPoint)) {
+    this->pointsStarted++;
+    increment_positions(&this->world, &this->startingPoint);
+  }
+  //if the trajectory is reset
+  if (this->trajectory->count == 0) {
+    trajectory_add(this->trajectory, this->startingPoint);
+  }
+
+  this->walker.pos = this->trajectory->positions[this->trajectory->count - 1];
+  sim_create_trajectory(this, this->trajectory->count + 1);
+
+  return 0;
+
+}
+*/
 /*
  *
  */

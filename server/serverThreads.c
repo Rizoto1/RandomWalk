@@ -1,3 +1,5 @@
+#define _GNU_SOURCE  //to find tryjoin
+
 #include "serverThreads.h"
 #include "serverUtil.h"
 #include <stdio.h>
@@ -13,6 +15,7 @@
 #include <game/walker.h>
 #include <game/world.h>
 #include <unistd.h>
+
 
 _Bool server_init(char** argv) {
   //walker init
@@ -55,8 +58,9 @@ _Bool server_init(char** argv) {
   server_ctx_t ctx = {0};
   ctx.running = &running;
   ctx.sim = &sim;
-  pthread_mutex_init(&ctx.vMutex, NULL);
+  pthread_mutex_init(&ctx.viewMutex, NULL);
   pthread_mutex_init(&ctx.cManagement.cMutex, NULL);
+  pthread_mutex_init(&ctx.simMutex, NULL);
   pthread_cond_init(&ctx.cManagement.add, NULL);
   pthread_cond_init(&ctx.cManagement.remove, NULL);
 
@@ -93,14 +97,13 @@ _Bool server_init(char** argv) {
     pthread_mutex_lock(&ctx.cManagement.cMutex);
     for (int i = 0; i < SERVER_CAPACITY; i++) {
       client_data_t* c = &ctx.cManagement.clients[i];
-      if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0) {
-        pthread_t tid = c->tid;
-        c->tid = 0;
-    pthread_mutex_unlock(&ctx.cManagement.cMutex);
-        printf("Server: Joining recv thread\n");
-        pthread_join(tid, NULL);
-    pthread_mutex_lock(&ctx.cManagement.cMutex);
-        remove_client(&ctx.cManagement, i);
+      if (c->state == CLIENT_TERMINATED && c->tid != 0) {
+        int rc = pthread_tryjoin_np(c->tid, NULL);
+        if (rc == 0) {
+          printf("Server: Joined recv thread\n");
+          c->tid = 0;
+          remove_client(&ctx.cManagement, i);
+        }
       }
     }
     pthread_mutex_unlock(&ctx.cManagement.cMutex);
@@ -147,7 +150,8 @@ _Bool server_init(char** argv) {
   free(ctx.sock);
   walker_destroy(&walker);
   w_destroy(&world);
-  pthread_mutex_destroy(&ctx.vMutex);
+  pthread_mutex_destroy(&ctx.viewMutex);
+  pthread_mutex_destroy(&ctx.simMutex);
   pthread_mutex_destroy(&ctx.cManagement.cMutex);
   pthread_cond_destroy(&ctx.cManagement.add);
   pthread_cond_destroy(&ctx.cManagement.remove);
@@ -218,14 +222,14 @@ void* server_recv_thread(void* arg) {
     }
     switch(cmd) {
       case 'i':
-        pthread_mutex_lock(&ctx->vMutex);
+        pthread_mutex_lock(&ctx->viewMutex);
         ctx->viewMode = INTERACTIVE;
-        pthread_mutex_unlock(&ctx->vMutex);
+        pthread_mutex_unlock(&ctx->viewMutex);
         break;
       case 's':
-        pthread_mutex_lock(&ctx->vMutex);
+        pthread_mutex_lock(&ctx->viewMutex);
         ctx->viewMode = SUMMARY;
-        pthread_mutex_unlock(&ctx->vMutex);
+        pthread_mutex_unlock(&ctx->viewMutex);
         break;
       case 'q':
         pthread_mutex_lock(&ctx->cManagement.cMutex);
@@ -239,14 +243,14 @@ void* server_recv_thread(void* arg) {
     if (ctx->viewMode == SUMMARY) {
       switch(cmd) {
         case 'a':
-          pthread_mutex_lock(&ctx->vMutex);
+         pthread_mutex_lock(&ctx->viewMutex);
           c->sType = AVG_MOVE_COUNT;
-          pthread_mutex_unlock(&ctx->vMutex);
+          pthread_mutex_unlock(&ctx->viewMutex);
           break;
         case 'b':
-          pthread_mutex_lock(&ctx->vMutex);
+          pthread_mutex_lock(&ctx->viewMutex);
           c->sType = PROB_CENTER_REACH;
-          pthread_mutex_unlock(&ctx->vMutex);
+          pthread_mutex_unlock(&ctx->viewMutex);
           break; 
       }
     }
@@ -285,15 +289,20 @@ static void send_interactive(void* arg) {
       packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height, ctx->sim->trajectory->max };
       world_t* w = &ctx->sim->world;
       socket_send(&client->socket, &h, sizeof(h));
+      pthread_mutex_lock(&ctx->simMutex);
 
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i] = w->obstacles[i];
       }
+      pthread_mutex_unlock(&ctx->simMutex);
+      if (!atomic_load(&client->active)) return;
       socket_send(&client->socket, buf, size);
       free(buf);
+      pthread_mutex_lock(&ctx->simMutex);
 
       size = sizeof(position_t) * ctx->sim->trajectory->max;
-      socket_send(&client->socket, ctx->sim->trajectory, size);
+      socket_send(&client->socket, ctx->sim->trajectory->positions, size);
+      pthread_mutex_unlock(&ctx->simMutex);
     }
   }
 
@@ -313,18 +322,24 @@ static void send_summary(void* arg) {
 
     if (client->active && client->sType == AVG_MOVE_COUNT) {
       socket_send(&client->socket, &h, sizeof(h));
+      pthread_mutex_lock(&ctx->simMutex);
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
       }
+      pthread_mutex_unlock(&ctx->simMutex);
+      if (!atomic_load(&client->active)) return;
       socket_send(&client->socket, buf, size);
 
     } else if (client->active && client->sType == PROB_CENTER_REACH) {
       socket_send(&client->socket, &h, sizeof(h));
+      pthread_mutex_lock(&ctx->simMutex);
 
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
       }
-      socket_send(ctx->sock, buf, size);
+      pthread_mutex_unlock(&ctx->simMutex);
+      if (!atomic_load(&client->active)) return;
+      socket_send(&client->socket, buf, size);
 
     }
   }
@@ -339,9 +354,9 @@ void* server_send_thread(void* arg) {
   printf("Server: Starting send thread\n");
   while (atomic_load(ctx->running)) {
 
-    pthread_mutex_lock(&ctx->vMutex);
+    pthread_mutex_lock(&ctx->viewMutex);
     viewmode_type_t viewMode = ctx->viewMode;
-    pthread_mutex_unlock(&ctx->vMutex); 
+    pthread_mutex_unlock(&ctx->viewMutex); 
 
     if (ctx->cManagement.clientCount == 0) {
       usleep(300000);
@@ -353,7 +368,7 @@ void* server_send_thread(void* arg) {
     } else {
       send_summary(arg);
     }
-    usleep(300000);
+    usleep(100000);
   }
   /*char message[256];
 
@@ -372,13 +387,33 @@ void* server_send_thread(void* arg) {
 
 void* simulation_thread(void* arg) {
   server_ctx_t* ctx = arg;
+  viewmode_type_t viewMode;
+  int result;
 
   printf("Server: Starting simulation\n");
   while(*ctx->running) {
-    sim_run(ctx->sim, ctx->running);
+    pthread_mutex_lock(&ctx->viewMutex);
+    viewMode = ctx->viewMode;
+
+    pthread_mutex_lock(&ctx->simMutex);
+    if (viewMode == SUMMARY) {
+      result = sim_run_rep(ctx->sim);
+    } else {
+      result = sim_step(ctx->sim);
+    }
+    pthread_mutex_unlock(&ctx->viewMutex);
+    pthread_mutex_unlock(&ctx->simMutex);
+
+    if (result == 2) {
+      atomic_store(ctx->running, 0);
+    }
+    if (viewMode == SUMMARY) {
+      usleep(SLEEP_SUMMARY);
+    } else {
+      usleep(SLEEP_INTERACTIVE);
+    }
   }
   printf("Server: simulation finished. Saving to file.\n");
   sim_save_to_file(ctx->sim);
-  *ctx->running = 0;
   return NULL;
 }
