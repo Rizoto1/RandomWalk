@@ -13,7 +13,7 @@ typedef enum {
 
 typedef struct {
   packet_type_t type;
-  int cur, total, w, h, k;
+  int cur, total, w, h, k, count;
 } packet_header_t;
 
 typedef struct {

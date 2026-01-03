@@ -243,7 +243,7 @@ void* server_recv_thread(void* arg) {
     if (ctx->viewMode == SUMMARY) {
       switch(cmd) {
         case 'a':
-         pthread_mutex_lock(&ctx->viewMutex);
+          pthread_mutex_lock(&ctx->viewMutex);
           c->sType = AVG_MOVE_COUNT;
           pthread_mutex_unlock(&ctx->viewMutex);
           break;
@@ -284,21 +284,22 @@ static void send_interactive(void* arg) {
     client_data_t* client = &ctx->cManagement.clients[c];
 
     if (client->active) {
+      pthread_mutex_lock(&ctx->simMutex);
       int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(char);
       char* buf = malloc(size);
-      packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height, ctx->sim->trajectory->max };
-      world_t* w = &ctx->sim->world;
+      packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications,
+        ctx->sim->world.width, ctx->sim->world.height,
+        ctx->sim->trajectory->max, ctx->sim->trajectory->count };
       socket_send(&client->socket, &h, sizeof(h));
-      pthread_mutex_lock(&ctx->simMutex);
 
-      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
-        buf[i] = w->obstacles[i];
-      }
-      pthread_mutex_unlock(&ctx->simMutex);
+      memcpy(buf,
+       ctx->sim->world.obstacles,
+       size);
+
       if (!atomic_load(&client->active)) return;
+
       socket_send(&client->socket, buf, size);
       free(buf);
-      pthread_mutex_lock(&ctx->simMutex);
 
       size = sizeof(position_t) * ctx->sim->trajectory->max;
       socket_send(&client->socket, ctx->sim->trajectory->positions, size);
@@ -314,36 +315,36 @@ static void send_summary(void* arg) {
 
   int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(double);
   double* buf = malloc(size);
-  packet_header_t h = {PKT_SUMMARY, ctx->sim->currentReplication, ctx->sim->replications, ctx->sim->world.width, ctx->sim->world.height, 0 };
+  packet_header_t h = {PKT_SUMMARY, ctx->sim->currentReplication, ctx->sim->replications,
+    ctx->sim->world.width, ctx->sim->world.height,
+    0, 0};
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   for (int c = 0; c < SERVER_CAPACITY; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
 
     if (client->active && client->sType == AVG_MOVE_COUNT) {
-      socket_send(&client->socket, &h, sizeof(h));
       pthread_mutex_lock(&ctx->simMutex);
+      socket_send(&client->socket, &h, sizeof(h));
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
       }
-      pthread_mutex_unlock(&ctx->simMutex);
       if (!atomic_load(&client->active)) return;
       socket_send(&client->socket, buf, size);
+      pthread_mutex_unlock(&ctx->simMutex);
 
     } else if (client->active && client->sType == PROB_CENTER_REACH) {
-      socket_send(&client->socket, &h, sizeof(h));
       pthread_mutex_lock(&ctx->simMutex);
+      socket_send(&client->socket, &h, sizeof(h));
 
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
       }
-      pthread_mutex_unlock(&ctx->simMutex);
       if (!atomic_load(&client->active)) return;
       socket_send(&client->socket, buf, size);
-
+      pthread_mutex_unlock(&ctx->simMutex);
     }
   }
-
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
   free(buf);
 }

@@ -9,12 +9,11 @@
 #include <math.h>
 
 void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
-  clear_screen();
   int w = hdr->w;
   int h = hdr->h;
-  int k = hdr->k;
+  int count = hdr->count;
 
-  printf("\nReplication %d / %d\n", hdr->cur + 1, hdr->total);
+  printf("\nReplication %d / %d\n", hdr->cur, hdr->total);
   position_t center = {(int)floor((double)hdr->w / 2), (int)floor((double)hdr->h / 2)};
 
   for (int y = 0; y < h; y++) {
@@ -22,14 +21,14 @@ void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
       int idx = y * w + x;
 
       // 1️⃣ ak je toto pozícia chodca (posledný krok)
-      if (path[k-1].x == x && path[k-1].y == y) {
+      if (path[count-1].x == x && path[count-1].y == y) {
         printf(" C ");     // C = current position
         continue;
       }
 
       // 2️⃣ ak je toto súčasť trajektórie (hociaké predchádzajúce x,y)
       _Bool printed = 0;
-      for (int p = 0; p < k-1; p++) {
+      for (int p = 0; p < count-1; p++) {
         if (path[p].x == x && path[p].y == y) {
           printf(" * ");
           printed = 1;
@@ -39,7 +38,7 @@ void draw_interactive_map(char* world, position_t* path, packet_header_t* hdr) {
       if (printed) continue;
 
       // 3️⃣ prekážka
-      if (world[idx] == '1') {
+      if (world[idx] == 1) {
         printf(" # ");
         continue;
       }

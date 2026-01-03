@@ -21,7 +21,7 @@ static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
   double* buffer = malloc(count * sizeof(double));
   socket_recv(ctx->socket, buffer, count * sizeof(double));
 
-  printf("\nReplication %d / %d\n", hdr->cur + 1, hdr->total);
+  printf("\nReplication %d / %d\n", hdr->cur, hdr->total);
   for (int i = 0; i < hdr->h; i++) {
     for (int j = 0; j < hdr->w; j++) {
       int idx = (i * hdr->w + j);

@@ -6,34 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-_Bool w_init(world_t* this, int width, int height, world_type_t worldType, int obstaclePercantage) {
-  if (!this) return 0;
-
-  if (width % 2 == 0) {
-    width++;
-  }
-  if (height % 2 ==0) {
-    height++;
-  }
-  this->width = width;
-  this->height = height;
-  this->worldType = worldType;
-  this->obstacles = calloc(width * height, sizeof(char));
-  
-  if (worldType == W_OBSTALCES) {
-    w_create_obstacles(this, obstaclePercantage);
-  }
-
-  return 1;
-}
-
-void w_destroy(world_t* this) {
-  if (!this) return;
-
-  free(this->obstacles);
-  this->obstacles = NULL;
-}
-
 /*
  * This function goes searches the whole map using BFS. 
  * If some non obstacles points have visited attribute set to 0 it means they are unreachable.
@@ -94,6 +66,36 @@ static void w_all_nodes_reachable(world_t* this) {
   free(visited);
   free(queue);
 }
+
+_Bool w_init(world_t* this, int width, int height, world_type_t worldType, int obstaclePercantage) {
+  if (!this) return 0;
+
+  if (width % 2 == 0) {
+    width++;
+  }
+  if (height % 2 ==0) {
+    height++;
+  }
+  this->width = width;
+  this->height = height;
+  this->worldType = worldType;
+  this->obstacles = calloc(width * height, sizeof(char));
+  
+  if (worldType == W_OBSTALCES) {
+    w_create_obstacles(this, (double)obstaclePercantage / 100);
+    w_all_nodes_reachable(this);
+  }
+
+  return 1;
+}
+
+void w_destroy(world_t* this) {
+  if (!this) return;
+
+  free(this->obstacles);
+  this->obstacles = NULL;
+}
+
 
 /*
  * if position is in obstacle in the world return 1,
@@ -165,7 +167,6 @@ void w_create_obstacles(world_t* this, double obstaclePercantage) {
       }
   }
 
-  w_all_nodes_reachable(this);
 }
 
 /*
