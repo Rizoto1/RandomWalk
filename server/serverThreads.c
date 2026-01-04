@@ -333,27 +333,33 @@ static void send_summary(void* arg) {
   for (int c = 0; c < SERVER_CAPACITY; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
 
-    if (client->active && client->sType == AVG_MOVE_COUNT) {
-      pthread_mutex_lock(&ctx->simMutex);
-      socket_send(&client->ipc.sock, &h, sizeof(h));
-      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
-        buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
-      }
-      if (!atomic_load(&client->active)) return;
-      socket_send(&client->ipc.sock, buf, size);
-      pthread_mutex_unlock(&ctx->simMutex);
+    pthread_mutex_lock(&ctx->simMutex);
+    if (client->active) {
+      if (client->sType == AVG_MOVE_COUNT) {
 
-    } else if (client->active && client->sType == PROB_CENTER_REACH) {
-      pthread_mutex_lock(&ctx->simMutex);
-      socket_send(&client->ipc.sock, &h, sizeof(h));
+        for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
+          if (ctx->sim->world.obstacles[i] == 1) {
+            buf[i] = -1;
+            continue;
+          }
 
-      for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
-        buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
+          buf[i] = ct_avg_steps(&ctx->sim->pointStats[i]);
+        }
+
+      } else {
+        for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
+          if (ctx->sim->world.obstacles[i] == 1) {
+            buf[i] = -1;
+            continue;
+          }
+
+          buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
+        }
       }
-      if (!atomic_load(&client->active)) return;
+      socket_send(&client->ipc.sock, &h, sizeof(h));
       socket_send(&client->ipc.sock, buf, size);
-      pthread_mutex_unlock(&ctx->simMutex);
     }
+    pthread_mutex_unlock(&ctx->simMutex);
   }
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
   free(buf);

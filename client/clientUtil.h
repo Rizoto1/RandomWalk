@@ -2,24 +2,16 @@
 #define CLIENT_UTIL_H
 
 #include <stdatomic.h>
-#include <ipc/ipcSocket.h>
-#include <ipc/ipcPipe.h>
-#include <ipc/ipcShmSem.h>
-#include <stdio.h>
-
-#define PORT 6469
+#include <ipc/ipcUtil.h>
 
 typedef struct {
-    int type; // 0=pipe,1=shm,2=sock
-    pipe_t* pipe;
-    shm_t* shm;
-    socket_t* socket;
+    ipc_ctx_t* ipc;
     atomic_bool running;
 } client_context_t;
 
 void clear_screen(void);
 
 void ctx_destroy(client_context_t* ctx);
-void ctx_init(client_context_t* ctx);
+int ctx_init(client_context_t* ctx, ipc_ctx_t* ipc);
 
 #endif

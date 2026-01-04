@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <stdio.h>
 #define PADDING 
 
 void draw_interactive_map(const char* world, position_t* path, packet_header_t* hdr) {
@@ -225,11 +226,16 @@ void connectToGame(void) {
     return;
   }
 
+  ipc_ctx_t ipc;
+  if(ipc_init(&ipc, 1, "sock", port)) {
+    perror("Client: Connection init failed\n");
+    return;
+  };
   client_context_t ctx;
-  ctx_init(&ctx);
-  ctx.socket = &sock;
-  ctx.type = 2;
-  ctx.socket->fd = sock.fd;
+  if(ctx_init(&ctx, &ipc)) {
+    perror("Client: Client init failed\n");
+    return;
+  };
   simulation_menu(&ctx);
   close(sock.fd);
   ctx_destroy(&ctx);

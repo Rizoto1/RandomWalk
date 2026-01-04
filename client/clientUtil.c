@@ -1,20 +1,17 @@
 #include "clientUtil.h"
+#include "ipc/ipcUtil.h"
+#include <stdio.h>
 
 void ctx_destroy(client_context_t* ctx) {
   if (!ctx) return;
-    ctx->pipe = NULL;
-    ctx->shm = NULL;
-    ctx->socket = NULL;
-  
+  ipc_destroy(ctx->ipc);
 }
 
-void ctx_init(client_context_t* ctx) {
-  if (!ctx) return;
+int ctx_init(client_context_t* ctx, ipc_ctx_t* ipc) {
+  if (!ctx) return 1;
   ctx->running = 1;
-  ctx->socket = NULL;
-  ctx->type = 2;
-  ctx->shm = NULL;
-  ctx->pipe = NULL;
+  ctx->ipc = ipc;
+  return 0;
 }
 
 void clear_screen(void) {
