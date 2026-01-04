@@ -40,11 +40,23 @@ int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, 
   ctx->sim = sim;
   ctx->viewMode = SUMMARY;
   ctx->ipc = ipc;
+  ctx->cManagement.creatorPos = -1;
+  ctx->cManagement.creatorSet = 0;
   pthread_mutex_init(&ctx->viewMutex, NULL);
   pthread_mutex_init(&ctx->cManagement.cMutex, NULL);
   pthread_mutex_init(&ctx->simMutex, NULL);
   pthread_cond_init(&ctx->cManagement.add, NULL);
-  pthread_cond_init(&ctx->cManagement.remove, NULL);
 
   return 0;
+}
+
+void server_ctx_destroy(server_ctx_t* ctx) {
+  if (!ctx) return;
+  walker_destroy(&ctx->sim->walker);
+  w_destroy(&ctx->sim->world);
+  ipc_destroy(ctx->ipc);
+  pthread_mutex_destroy(&ctx->viewMutex);
+  pthread_mutex_destroy(&ctx->simMutex);
+  pthread_mutex_destroy(&ctx->cManagement.cMutex);
+  pthread_cond_destroy(&ctx->cManagement.add);
 }

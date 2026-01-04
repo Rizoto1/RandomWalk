@@ -24,9 +24,10 @@ typedef struct {
   client_data_t clients[SERVER_CAPACITY];
   int lastRemoved;
   int clientCount;
+  int creatorPos;
+  _Bool creatorSet;
   pthread_mutex_t cMutex;
   pthread_cond_t add;
-  pthread_cond_t remove;
 } client_management_t;
 
 typedef struct {
@@ -49,5 +50,6 @@ int add_client(client_management_t* mng, client_data_t c);
 void remove_client(client_management_t* mng, int pos);
 
 int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, ipc_ctx_t* ipc);
+void server_ctx_destroy(server_ctx_t* ctx);
 
 #endif

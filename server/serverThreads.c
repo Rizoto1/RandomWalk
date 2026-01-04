@@ -13,6 +13,9 @@
 #include <game/world.h>
 #include <unistd.h>
 
+/*
+ * Initializes server from file.
+ */
 static int server_load(char** argv, simulation_t* sim) {
   if(!sim_load_from_file(sim, argv[4])) {
     return 1;
@@ -22,6 +25,9 @@ static int server_load(char** argv, simulation_t* sim) {
   return 0;
 }
 
+/*
+ * Initializes server based on arguments.
+ */
 static int server_create(char** argv, simulation_t* sim) {
   printf("Server: Initializing walker\n");
   double up = strtod(argv[4], NULL);
@@ -61,6 +67,72 @@ static int server_create(char** argv, simulation_t* sim) {
   return 0;
 }
 
+static void start(server_ctx_t* ctx) {
+  //multithreading
+  printf("Sever: starting threads\n");
+  pthread_t ts, ta, tsim;
+  pthread_create(&ts,NULL,server_send_thread, ctx);
+  pthread_create(&ta,NULL,server_accept_thread, ctx);
+  pthread_create(&tsim,NULL,simulation_thread, ctx);
+  while (atomic_load(ctx->running)) {
+    pthread_mutex_lock(&ctx->cManagement.cMutex);
+    for (int i = 0; i < SERVER_CAPACITY; i++) {
+      client_data_t* c = &ctx->cManagement.clients[i];
+      if (c->state == CLIENT_TERMINATED && c->tid != 0) {
+        int rc = pthread_tryjoin_np(c->tid, NULL);
+        if (rc == 0) {
+          printf("Server: Joined recv thread\n");
+          c->tid = 0;
+          remove_client(&ctx->cManagement, i);
+        }
+      }
+    }
+    pthread_mutex_unlock(&ctx->cManagement.cMutex);
+    usleep(10000);
+  }
+
+
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
+  for (int i = 0; i < SERVER_CAPACITY; i++) {
+    client_data_t* c = &ctx->cManagement.clients[i];
+    if (c->state == CLIENT_ACTIVE) {
+      socket_shutdown(&c->ipc.sock);
+      socket_close(&c->ipc.sock);
+    }
+  }
+  pthread_mutex_unlock(&ctx->cManagement.cMutex);
+
+  pthread_join(ts,NULL);
+  pthread_join(ta,NULL);
+  pthread_join(tsim,NULL);
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
+
+  for (int i = 0; i < SERVER_CAPACITY; i++) {
+    client_data_t* c = &ctx->cManagement.clients[i];
+
+    if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0 && c->tid != 0) {
+      pthread_t tid = c->tid;
+      c->tid = 0;
+
+      pthread_mutex_unlock(&ctx->cManagement.cMutex);
+
+      printf("Server: Joining recv thread\n");
+      pthread_join(tid, NULL);
+
+      pthread_mutex_lock(&ctx->cManagement.cMutex);
+      remove_client(&ctx->cManagement, i);
+    }
+  }
+
+  pthread_mutex_unlock(&ctx->cManagement.cMutex);
+}
+
+
+/*
+ * Initializes server base on server load type.
+ * 0 - init from file
+ * 1 - init based on argv
+ */
 int server_init(char** argv) {
   simulation_t sim = {0};
   printf("Server: Initializing simulation\n");
@@ -78,7 +150,6 @@ int server_init(char** argv) {
     }
   }
 
-  sleep(5);
   ipc_ctx_t ipc;
   if (ipc_init(&ipc, 0, argv[2], atoi(argv[3]))) {
     perror("Server: IPC init failed\n");
@@ -96,79 +167,23 @@ int server_init(char** argv) {
     return 1;
   };
 
+  start(&ctx);
 
-  //multithreading
-  printf("Sever: starting threads\n");
-  pthread_t ts, ta, tsim;
-  pthread_create(&ts,NULL,server_send_thread,&ctx);
-  pthread_create(&ta,NULL,server_accept_thread,&ctx);
-  pthread_create(&tsim,NULL,simulation_thread,&ctx);
-  while (running) {
-    pthread_mutex_lock(&ctx.cManagement.cMutex);
-    for (int i = 0; i < SERVER_CAPACITY; i++) {
-      client_data_t* c = &ctx.cManagement.clients[i];
-      if (c->state == CLIENT_TERMINATED && c->tid != 0) {
-        int rc = pthread_tryjoin_np(c->tid, NULL);
-        if (rc == 0) {
-          printf("Server: Joined recv thread\n");
-          c->tid = 0;
-          remove_client(&ctx.cManagement, i);
-        }
-      }
-    }
-    pthread_mutex_unlock(&ctx.cManagement.cMutex);
-    usleep(10000);
-  }
-
-
-  pthread_mutex_lock(&ctx.cManagement.cMutex);
-  for (int i = 0; i < SERVER_CAPACITY; i++) {
-    client_data_t* c = &ctx.cManagement.clients[i];
-    if (c->state == CLIENT_ACTIVE) {
-      socket_shutdown(&c->ipc.sock);
-      socket_close(&c->ipc.sock);
-    }
-  }
-  pthread_mutex_unlock(&ctx.cManagement.cMutex);
-
-
-  pthread_join(ts,NULL);
-  pthread_join(ta,NULL);
-  pthread_join(tsim,NULL);
-  pthread_mutex_lock(&ctx.cManagement.cMutex);
-
-  for (int i = 0; i < SERVER_CAPACITY; i++) {
-    client_data_t* c = &ctx.cManagement.clients[i];
-
-    if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0 && c->tid != 0) {
-      pthread_t tid = c->tid;
-      c->tid = 0;
-
-      pthread_mutex_unlock(&ctx.cManagement.cMutex);
-
-      printf("Server: Joining recv thread\n");
-      pthread_join(tid, NULL);
-
-      pthread_mutex_lock(&ctx.cManagement.cMutex);
-      remove_client(&ctx.cManagement, i);
-    }
-  }
-
-  pthread_mutex_unlock(&ctx.cManagement.cMutex);
-
-  walker_destroy(&ctx.sim->walker);
-  w_destroy(&ctx.sim->world);
+  server_ctx_destroy(&ctx);
+  
   sim_destroy(&sim);
   ipc_destroy(ctx.ipc);
-  pthread_mutex_destroy(&ctx.viewMutex);
-  pthread_mutex_destroy(&ctx.simMutex);
-  pthread_mutex_destroy(&ctx.cManagement.cMutex);
-  pthread_cond_destroy(&ctx.cManagement.add);
-  pthread_cond_destroy(&ctx.cManagement.remove);
+  
   return 0;
 }
 
-//maybe it will throw errors if i send like -1 to socket_close
+/*
+ * This function accepts new clients.
+ * If the SERVER_CAPACITY is reached it waits for a user to disconnect.
+ * Otherwise creates a new user and binds receive thread to him.
+ *
+ * Made with help from AI.
+ */
 void* server_accept_thread(void* arg) {
   server_ctx_t* ctx = arg;
 
@@ -201,7 +216,6 @@ void* server_accept_thread(void* arg) {
       pthread_create(&ctx->cManagement.clients[clientPos].tid, NULL, server_recv_thread, args);
 
       pthread_mutex_unlock(&ctx->cManagement.cMutex);
-      pthread_cond_broadcast(&ctx->cManagement.remove);
     }
   }
 
@@ -209,12 +223,29 @@ void* server_accept_thread(void* arg) {
   return NULL;
 }
 
+/*
+ * This function receives data from user. One function is for one client.
+ * Based on certain inputs it changes what will be sent to clients.
+ * i - Interactive - shows trajectory of walker
+ * s - Summary - Statistical display
+ * f - Terminate server, admin/creator only
+ * q - Client quits
+ * a - Summary 1 - shows average moves to reach center
+ * b - Summary 2 - shows probability to reach center
+ */
 void* server_recv_thread(void* arg) {
   recv_data_t* data = arg;
   server_ctx_t* ctx = data->ctx;
   int clientPos = data->clientPos;
   client_data_t* c = &ctx->cManagement.clients[clientPos];
   socket_t sock = c->ipc.sock;
+  _Bool isAdmin = 0;
+
+  if (!ctx->cManagement.creatorSet &&
+    ctx->cManagement.creatorPos <= 0 &&
+    c == &ctx->cManagement.clients[ctx->cManagement.creatorPos]) {
+    isAdmin = 1;
+  }
 
   free(arg);
 
@@ -223,8 +254,8 @@ void* server_recv_thread(void* arg) {
   while (atomic_load(ctx->running) && atomic_load(&c->active)) {
     int r = socket_recv(&sock, &cmd, sizeof(cmd));
     if (r <= 0) {
-      pthread_mutex_lock(&ctx->cManagement.cMutex);
       atomic_store(&c->active,0);
+      pthread_mutex_lock(&ctx->cManagement.cMutex);
       c->state = CLIENT_TERMINATED;
       pthread_mutex_unlock(&ctx->cManagement.cMutex);
       printf("Server: Terminating recv thread\n");
@@ -241,10 +272,18 @@ void* server_recv_thread(void* arg) {
         ctx->viewMode = SUMMARY;
         pthread_mutex_unlock(&ctx->viewMutex);
         break;
+      case 'f':
+        if (isAdmin) {
+          atomic_store(ctx->running, 0);
+        }
+        break;
       case 'q':
-        pthread_mutex_lock(&ctx->cManagement.cMutex);
         atomic_store(&c->active,0);
+        pthread_mutex_lock(&ctx->cManagement.cMutex);
         c->state = CLIENT_TERMINATED;
+        if (isAdmin) {
+          ctx->cManagement.creatorPos = -1;
+        }
         pthread_mutex_unlock(&ctx->cManagement.cMutex);
         printf("Server: Terminating recv thread\n");
         return NULL;
@@ -266,26 +305,23 @@ void* server_recv_thread(void* arg) {
     }
   }
 
-  /*char buf[64];
-
-  while(*ctx->running) {
-    if(ctx->type==0) pipe_recv(ctx->pipe,buf,64);
-    if(ctx->type==1) shm_read(ctx->shm,buf,64);
-    if(ctx->type==2) socket_recv(ctx->sock,buf,64);
-
-    if(strcmp(buf,"STOP")==0) *ctx->running = 0;
-    if(strcmp(buf,"MODE_INTER")==0) ctx->sim->interactive = 1;
-    if(strcmp(buf,"MODE_SUM")==0)   ctx->sim->interactive = 0;
-  }*/
-  pthread_mutex_lock(&ctx->cManagement.cMutex);
   atomic_store(&c->active,0);
+  pthread_mutex_lock(&ctx->cManagement.cMutex);
   c->state = CLIENT_TERMINATED;
+  if (isAdmin) {
+    ctx->cManagement.creatorPos = -1;
+  }
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
   printf("Server: Terminating recv thread\n");
   return NULL;
 }
 
-//maybe I need to add another mutex when I am read trajectory might cause errors
+/*
+ * This function sends interactive type data to all active clients.
+ * As an argument it is expecting server_ctx_t.
+ *
+ * Made with help from AI.
+ */
 static void send_interactive(void* arg) {
   server_ctx_t* ctx = arg;
 
@@ -295,18 +331,18 @@ static void send_interactive(void* arg) {
 
     if (client->active) {
       pthread_mutex_lock(&ctx->simMutex);
+
       int size = ctx->sim->world.width * ctx->sim->world.height * sizeof(char);
       char* buf = malloc(size);
       packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications,
         ctx->sim->world.width, ctx->sim->world.height,
         ctx->sim->trajectory->max, ctx->sim->trajectory->count };
+
       socket_send(&client->ipc.sock, &h, sizeof(h));
 
       memcpy(buf,
              ctx->sim->world.obstacles,
              size);
-
-      if (!atomic_load(&client->active)) return;
 
       socket_send(&client->ipc.sock, buf, size);
       free(buf);
@@ -320,6 +356,12 @@ static void send_interactive(void* arg) {
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
 }
 
+/*
+ * This function sends summary type data to all active clients.
+ * As an argument it is expecting server_ctx_t.
+ *
+ * Made with help from AI.
+ */
 static void send_summary(void* arg) {
   server_ctx_t* ctx = arg;
 
@@ -365,6 +407,11 @@ static void send_summary(void* arg) {
   free(buf);
 }
 
+/*
+ * This function sends simulation data to all connected clients in a loop based on server viewMode.
+ * If there is no user connected it sets server viewMode to SUMMARY.
+ * As an argument it is expecting server_ctx_t.
+ */
 void* server_send_thread(void* arg) {
   server_ctx_t* ctx = arg;
 
@@ -376,6 +423,10 @@ void* server_send_thread(void* arg) {
     pthread_mutex_unlock(&ctx->viewMutex); 
 
     if (ctx->cManagement.clientCount == 0) {
+      pthread_mutex_lock(&ctx->viewMutex);
+      ctx->viewMode = SUMMARY;
+      pthread_mutex_unlock(&ctx->viewMutex); 
+
       usleep(300000);
       continue;
     }
@@ -387,28 +438,22 @@ void* server_send_thread(void* arg) {
     }
     usleep(100000);
   }
-  /*char message[256];
-
-  while(*ctx->running) {
-    sprintf(message,"%d/%d",ctx->sim->currentReplication,ctx->sim->replications);
-
-    if(ctx->type==0) pipe_send(ctx->pipe,message);
-    if(ctx->type==2) socket_send(ctx->sock,message);
-    if(ctx->type==1) shm_write(ctx->shm,&ctx->sim->currentReplication);
-
-    sleep(1);
-  }*/
   printf("Server: Terminating send thread\n");
   return NULL;
 }
 
+/*
+ * This function runs in a loop and simulates Random Walk until simulation is not finished.
+ * When simulation returns 2 it means it has done all replications and running is set to 0.
+ * As an argument it is expecting server_ctx_t.
+ */
 void* simulation_thread(void* arg) {
   server_ctx_t* ctx = arg;
   viewmode_type_t viewMode;
   int result;
 
   printf("Server: Starting simulation\n");
-  while(*ctx->running) {
+  while(atomic_load(ctx->running)) {
     pthread_mutex_lock(&ctx->viewMutex);
     viewMode = ctx->viewMode;
 
