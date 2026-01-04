@@ -189,19 +189,6 @@ void newGame(void) {
     printf("Invalid port\n");
   }
 
-  viewmode_type_t viewMode;
-  printf("Enter simulation view mode:\n");
-  printf("0) Interactive - see walker trajectory\n");
-  printf("1) Summary - statistical\n");
-  int i_viewMode;
-  scanf("%d", &i_viewMode);
-  viewMode = (viewmode_type_t)i_viewMode;
-  if (viewMode < 0) {
-    viewMode = 0;
-  } else if (viewMode > 1) {
-    viewMode = 1;  
-  }
-
   int num;
   printf("Would you like to create a simulation or return to main menu?\n");
   printf("1) Continue\n");
@@ -212,7 +199,7 @@ void newGame(void) {
   createServer(ipc, port,
                up, down, right, left,
                width, height, worldType, obstaclePercentage,
-               viewMode,
+               1,
                replications, k, fPath); 
 }
 

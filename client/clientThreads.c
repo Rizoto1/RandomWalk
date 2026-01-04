@@ -140,11 +140,11 @@ void simulation_menu(client_context_t* context) {
 void createServer(int type, int port,
                   double up, double down, double right, double left,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
-                  viewmode_type_t viewMode,
+                  int serverLoadType,
                   int replications, int k, char* savePath) {
   pid_t pid = fork();
   char portBuf[16], upBuf[16], downBuf[16], rightBuf[16], leftBuf[16], ipcBuf[16], wTypeBuf[16];
-  char widthBuf[16], heightBuf[16], obstBuf[16], replBuf[16], kBuf[16], vModeBuf[16];
+  char widthBuf[16], heightBuf[16], obstBuf[16], replBuf[16], kBuf[16], serModeBuf[16];
 
   /* sprintf alebo bezpečnejší snprintf */
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
@@ -157,7 +157,7 @@ void createServer(int type, int port,
   snprintf(heightBuf, sizeof(heightBuf), "%d", height);
   snprintf(wTypeBuf, sizeof(wTypeBuf), "%d", worldType);
   snprintf(obstBuf, sizeof(obstBuf), "%d", obstaclePercentage);
-  snprintf(vModeBuf, sizeof(vModeBuf), "%d", viewMode);
+  snprintf(serModeBuf, sizeof(serModeBuf), "%d", serverLoadType);
   snprintf(replBuf, sizeof(replBuf), "%d", replications);
   snprintf(kBuf, sizeof(kBuf), "%d", k);
 
@@ -172,6 +172,7 @@ void createServer(int type, int port,
     char *args[] = {
       "server",
       "sock",
+      serModeBuf,
       portBuf,
       upBuf,
       downBuf,
@@ -181,7 +182,6 @@ void createServer(int type, int port,
       heightBuf,
       wTypeBuf,
       obstBuf,
-      vModeBuf,
       replBuf,
       kBuf,
       savePath,

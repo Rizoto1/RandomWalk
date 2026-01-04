@@ -5,6 +5,7 @@
 #include <game/simulation.h>
 #include <pthread.h>
 #include <stdatomic.h>
+#include <string.h>
 
 int add_client(client_management_t* mng, client_data_t c) {
     for (int i = 0; i < SERVER_CAPACITY; i++) {
@@ -34,7 +35,7 @@ void remove_client(client_management_t* mng, int pos) {
 
 int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, ipc_ctx_t* ipc) {
   if (!ctx || !sim || !running || !ipc) return 1;
-  
+  memset(ctx, 0, sizeof(*ctx)); 
   ctx->running = running;
   ctx->sim = sim;
   ctx->viewMode = SUMMARY;

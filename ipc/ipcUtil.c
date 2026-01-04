@@ -4,7 +4,6 @@
 #include "ipc/ipcSocket.h"
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 int ipc_init(ipc_ctx_t* ipc, int who, const char* type, int port) {
   if (!ipc) return 1;
@@ -16,15 +15,11 @@ int ipc_init(ipc_ctx_t* ipc, int who, const char* type, int port) {
     } else {
       s = socket_init_client("127.0.0.1", port);
     }
-    if (s.fd <= 0) {
+    if (s.fd < 0) {
       perror("Crating connection failed\n");
       return 1;
     }
-    ipc->sock = malloc(sizeof(socket_t));
-    if (!ipc->sock) {
-      return 1;
-    }
-    *ipc->sock = s;
+    ipc->sock = s;
     ipc->type = 2;
   } else if (strcmp(type, "pipe") == 0) {
     //TODO
@@ -41,20 +36,14 @@ int ipc_destroy(ipc_ctx_t* ipc) {
   if (!ipc) return 1;
   switch (ipc->type) {
     case 0:
-      pipe_close(ipc->pipe);
-      free(ipc->pipe);
-      ipc->pipe = NULL;
+      pipe_close(&ipc->pipe);
       break;
     case 1:
-      shm_close(ipc->shm);
-      free(ipc->shm);
-      ipc->shm = NULL;
+      shm_close(&ipc->shm);
       break;
     case 2:
-      socket_shutdown(ipc->sock);
-      socket_close(ipc->sock);
-      free(ipc->sock);
-      ipc->sock = NULL;
+      socket_shutdown(&ipc->sock);
+      socket_close(&ipc->sock);
       break;
     default:
       return 1;
