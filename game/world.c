@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 
+//TODO
+//divide obstacle percentage to better represent the percentage, because now 50% is like 90% and 80 is 100%
+
 /*
  * This function goes searches the whole map using BFS. 
  * If some non obstacles points have visited attribute set to 0 it means they are unreachable.

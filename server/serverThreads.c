@@ -1,5 +1,5 @@
 #define _GNU_SOURCE  //to find tryjoin
-
+#include <ipc/ipcUtil.h>
 #include "serverThreads.h"
 #include "serverUtil.h"
 #include <stdio.h>
@@ -7,86 +7,77 @@
 #include <string.h>
 #include <stdatomic.h>
 #include <pthread.h>
-#include <ipc/ipcPipe.h>
-#include <ipc/ipcShmSem.h>
-#include <ipc/ipcSocket.h>
 #include <game/simulation.h>
 #include <game/utility.h>
 #include <game/walker.h>
 #include <game/world.h>
 #include <unistd.h>
 
+static int server_load(char** argv, simulation_t* sim) {
+  if(!sim_load_from_file(sim, argv[4])) {
+    return 1;
+  }
+  sim->replications = atoi(argv[5]);
+  sim->fSavePath = argv[6];
+  return 0;
+}
 
-_Bool server_init(char** argv) {
-  //walker init
-  double up = strtod(argv[3], NULL);
-  double down = strtod(argv[4], NULL);
-  double right = strtod(argv[5], NULL);
-  double left = strtod(argv[6], NULL);
-
+static int server_create(char** argv, simulation_t* sim) {
   printf("Server: Initializing walker\n");
+  double up = strtod(argv[4], NULL);
+  double down = strtod(argv[5], NULL);
+  double right = strtod(argv[6], NULL);
+  double left = strtod(argv[7], NULL);
   walker_t walker;
   if (!walker_init(&walker, up, down, right, left)) {
     perror("Server: walker init failed\n");
     return 1;
   }
 
-  //world init
   printf("Server: Initializing world\n");
   world_t world;
-  int width = atoi(argv[7]);
-  int height = atoi(argv[8]);
-  int worldType = atoi(argv[9]);
-  int obstaclePercantage = atoi(argv[10]);
+  int width = atoi(argv[8]);
+  int height = atoi(argv[9]);
+  int worldType = atoi(argv[10]);
+  int obstaclePercantage = atoi(argv[11]);
   if (!w_init(&world, width, height, (world_type_t)worldType, obstaclePercantage)) {
     perror("Server: world init failed\n");
     return 1;
   }
 
   //simulation init
-  printf("Server: Initializing simulation\n");
   int replications = atoi(argv[12]);
   int k = atoi(argv[13]);
-  atomic_bool running = 1;
-  simulation_t sim;
-  if (!sim_init(&sim, walker, world, replications, k, argv[14])) {
+  if (!sim_init(sim, walker, world, replications, k, argv[14])) {
     perror("Server: sim init failed\n");
     return 1;
   }
 
-  //creating IPC protocol
-  server_ctx_t ctx = {0};
-  ctx.running = &running;
-  ctx.sim = &sim;
-  pthread_mutex_init(&ctx.viewMutex, NULL);
-  pthread_mutex_init(&ctx.cManagement.cMutex, NULL);
-  pthread_mutex_init(&ctx.simMutex, NULL);
-  pthread_cond_init(&ctx.cManagement.add, NULL);
-  pthread_cond_init(&ctx.cManagement.remove, NULL);
+  return 0;
+}
 
-  printf("Server: creating connection\n");
-  /*if(strcmp(argv[1],"pipe")==0) {
-    pipe_t p = pipe_init_server(argv[2]);
-    ctx.pipe = malloc(sizeof(pipe_t)); *ctx.pipe = p; ctx.type = 0;
-  }*/
-  if(strcmp(argv[1],"sock")==0) {
-    socket_t s = socket_init_server(atoi(argv[2]));
-    if (s.fd < 0) {
-      perror("Server: creating connection failed. Terminating server\n");
-      w_destroy(&world);
-      walker_destroy(&walker);
-      sim_destroy(&sim);
+int server_init(char** argv) {
+  simulation_t sim;
+  printf("Server: Initializing simulation\n");
+  if (atoi(argv[1]) == 0) {
+    if (server_load(argv, &sim) == 1) {
+      perror("Server: Simulation initialization failed\n");
       return 1;
     }
-    ctx.sock = malloc(sizeof(socket_t));
-    *ctx.sock = s;
-    ctx.type = 2;
+  } else {
+    if (server_create(argv, &sim) == 1) {
+      perror("Server: Simulation initialization failed\n");
+      return 1;
+    }
   }
-  /*if(strcmp(argv[1],"shm")==0) {
-    shm_t s = shm_init_server(atoi(argv[2]), &sim);
-    ctx.shm = malloc(sizeof(shm_t)); *ctx.shm = s; ctx.type = 1;
-  }*/
-  ctx.viewMode = SUMMARY;
+
+  ipc_ctx_t ipc;
+  ipc_init(&ipc, 0, argv[2], atoi(argv[3]));
+
+  atomic_bool running = 1;
+  server_ctx_t ctx = {0};
+  server_ctx_init(&ctx, &sim, &running, &ipc);
+
   //multithreading
   printf("Sever: starting threads\n");
   pthread_t ts, ta, tsim;
@@ -115,8 +106,8 @@ _Bool server_init(char** argv) {
   for (int i = 0; i < SERVER_CAPACITY; i++) {
     client_data_t* c = &ctx.cManagement.clients[i];
     if (c->state == CLIENT_ACTIVE) {
-      socket_shutdown(&c->socket);
-      socket_close(&c->socket);
+      socket_shutdown(c->ipc.sock);
+      socket_close(c->ipc.sock);
     }
   }
   pthread_mutex_unlock(&ctx.cManagement.cMutex);
@@ -146,10 +137,10 @@ _Bool server_init(char** argv) {
 
   pthread_mutex_unlock(&ctx.cManagement.cMutex);
 
+  walker_destroy(&ctx.sim->walker);
+  w_destroy(&ctx.sim->world);
   sim_destroy(&sim);
-  free(ctx.sock);
-  walker_destroy(&walker);
-  w_destroy(&world);
+  ipc_destroy(ctx.ipc);
   pthread_mutex_destroy(&ctx.viewMutex);
   pthread_mutex_destroy(&ctx.simMutex);
   pthread_mutex_destroy(&ctx.cManagement.cMutex);
@@ -164,7 +155,7 @@ void* server_accept_thread(void* arg) {
 
   printf("Server: Starting accept thread\n");
   while (atomic_load(ctx->running)) {
-    socket_t s = server_accept_client(ctx->sock->fd);
+    socket_t s = server_accept_client(ctx->ipc->sock->fd);
     if (s.fd > 0) {
       client_data_t c;
       memset(&c, 0, sizeof(client_data_t));
@@ -176,7 +167,7 @@ void* server_accept_thread(void* arg) {
 
       atomic_store(&c.active, 1);
       c.state = CLIENT_ACTIVE;
-      c.socket.fd = s.fd;
+      c.ipc.sock->fd = s.fd;
       c.sType = AVG_MOVE_COUNT;
       int clientPos = add_client(&ctx->cManagement, c);
       if (clientPos < 0) {
@@ -204,7 +195,7 @@ void* server_recv_thread(void* arg) {
   server_ctx_t* ctx = data->ctx;
   int clientPos = data->clientPos;
   client_data_t* c = &ctx->cManagement.clients[clientPos];
-  socket_t sock = c->socket;
+  socket_t sock = *c->ipc.sock;
 
   free(arg);
 
@@ -290,7 +281,7 @@ static void send_interactive(void* arg) {
       packet_header_t h = {PKT_INTERACTIVE_MAP, ctx->sim->currentReplication, ctx->sim->replications,
         ctx->sim->world.width, ctx->sim->world.height,
         ctx->sim->trajectory->max, ctx->sim->trajectory->count };
-      socket_send(&client->socket, &h, sizeof(h));
+      socket_send(client->ipc.sock, &h, sizeof(h));
 
       memcpy(buf,
        ctx->sim->world.obstacles,
@@ -298,11 +289,11 @@ static void send_interactive(void* arg) {
 
       if (!atomic_load(&client->active)) return;
 
-      socket_send(&client->socket, buf, size);
+      socket_send(client->ipc.sock, buf, size);
       free(buf);
 
       size = sizeof(position_t) * ctx->sim->trajectory->max;
-      socket_send(&client->socket, ctx->sim->trajectory->positions, size);
+      socket_send(client->ipc.sock, ctx->sim->trajectory->positions, size);
       pthread_mutex_unlock(&ctx->simMutex);
     }
   }
@@ -325,23 +316,23 @@ static void send_summary(void* arg) {
 
     if (client->active && client->sType == AVG_MOVE_COUNT) {
       pthread_mutex_lock(&ctx->simMutex);
-      socket_send(&client->socket, &h, sizeof(h));
+      socket_send(client->ipc.sock, &h, sizeof(h));
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i]   = ct_avg_steps(&ctx->sim->pointStats[i]);
       }
       if (!atomic_load(&client->active)) return;
-      socket_send(&client->socket, buf, size);
+      socket_send(client->ipc.sock, buf, size);
       pthread_mutex_unlock(&ctx->simMutex);
 
     } else if (client->active && client->sType == PROB_CENTER_REACH) {
       pthread_mutex_lock(&ctx->simMutex);
-      socket_send(&client->socket, &h, sizeof(h));
+      socket_send(client->ipc.sock, &h, sizeof(h));
 
       for (int i=0;i<ctx->sim->world.width * ctx->sim->world.height;i++) {
         buf[i] = ct_reach_center_prob(&ctx->sim->pointStats[i], ctx->sim->replications);
       }
       if (!atomic_load(&client->active)) return;
-      socket_send(&client->socket, buf, size);
+      socket_send(client->ipc.sock, buf, size);
       pthread_mutex_unlock(&ctx->simMutex);
     }
   }
