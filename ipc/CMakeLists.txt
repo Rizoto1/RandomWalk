@@ -4,6 +4,7 @@ target_sources(ipc PRIVATE
   ipcPipe.c
   ipcSocket.c
   ipcShmSem.c
+  ipcUtil.c
 )
 
 target_compile_definitions(ipc PUBLIC _XOPEN_SOURCE=500)
