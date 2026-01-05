@@ -18,14 +18,14 @@ typedef struct {
   ipc_ctx_t ipc;
   atomic_bool active;
   pthread_t tid;
+  _Bool isAdmin;
 } client_data_t;
 
 typedef struct {
   client_data_t clients[SERVER_CAPACITY];
   int lastRemoved;
   int clientCount;
-  int creatorPos;
-  _Bool creatorSet;
+  _Bool adminSet;
   pthread_mutex_t cMutex;
   pthread_cond_t add;
 } client_management_t;

@@ -1,14 +1,17 @@
 #include "ui.h"
 #include "clientUtil.h"
 #include "clientThreads.h"
+#include "ipc/ipcUtil.h"
 #include <ipc/ipcSocket.h>
 #include <ipc/ipcPipe.h>
 #include <ipc/ipcShmSem.h>
 #include <game/simulation.h>
 #include <game/walker.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include <unistd.h>
 #include <stdio.h>
 #define PADDING 
@@ -218,26 +221,23 @@ void connectToGame(void) {
     printf("Invalid port\n");
   }
 
-  socket_t sock;
-  printf("Client: Initializing socket\n");
-  sock = socket_init_client("127.0.0.1", port);
-  if (sock.fd < 0) {
-    printMM("Failed to join to server.");
-    return;
-  }
-
   ipc_ctx_t ipc;
   if(ipc_init(&ipc, 1, "sock", port)) {
     perror("Client: Connection init failed\n");
     return;
   };
+
   client_context_t ctx;
   if(ctx_init(&ctx, &ipc)) {
     perror("Client: Client init failed\n");
     return;
   };
+
   simulation_menu(&ctx);
-  close(sock.fd);
+  
+  atomic_store(&ctx.running, 0);
+  socket_shutdown(&ctx.ipc->sock);
+  ipc_destroy(ctx.ipc);
   ctx_destroy(&ctx);
 }
 

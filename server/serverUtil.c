@@ -52,8 +52,7 @@ int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, 
   ctx->sim = sim;
   ctx->viewMode = SUMMARY;
   ctx->ipc = ipc;
-  ctx->cManagement.creatorPos = -1;
-  ctx->cManagement.creatorSet = 0;
+  ctx->cManagement.adminSet = 0;
   pthread_mutex_init(&ctx->viewMutex, NULL);
   pthread_mutex_init(&ctx->cManagement.cMutex, NULL);
   pthread_mutex_init(&ctx->simMutex, NULL);

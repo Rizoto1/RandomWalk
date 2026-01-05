@@ -125,8 +125,9 @@ void simulation_menu(client_context_t* context) {
   sleep(2);
   // Wait — when user types STOP → terminate
   pthread_join(send_th, NULL);
+  
+  atomic_store(&context->running, 0);
 
-  context->running = 0;
   pthread_cancel(recv_th);
   pthread_join(recv_th, NULL);
 

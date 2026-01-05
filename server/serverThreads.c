@@ -185,6 +185,7 @@ int server_init(char** argv) {
  * If the SERVER_CAPACITY is reached it waits for a user to disconnect.
  * Otherwise creates a new user and binds receive thread to him.
  * As an argument it is expecting server_ctx_t.
+ * Sets the very first client as isAdmin.
  *
  * Made with help from AI.
  */
@@ -213,7 +214,13 @@ void* server_accept_thread(void* arg) {
         pthread_mutex_unlock(&ctx->cManagement.cMutex);
         continue;
       }
+      
+      if (!ctx->cManagement.adminSet) {
+        ctx->cManagement.adminSet = 1;
 
+        ctx->cManagement.clients[clientPos].isAdmin = 1;
+      }
+      printf("Server: accepted client fd=%d\n", s.fd);
       recv_data_t* args = malloc(sizeof(recv_data_t));
       args->clientPos = clientPos;
       args->ctx = ctx;
@@ -230,6 +237,7 @@ void* server_accept_thread(void* arg) {
 /*
  * This function receives data from user. One function is for one client.
  * As an argument it is excepcting recv_data_t.
+ * If the client isAdmin then it has permission to shutdown the whole server.
  * Based on certain inputs it changes what will be sent to clients.
  * i - Interactive - shows trajectory of walker
  * s - Summary - Statistical display
@@ -237,6 +245,8 @@ void* server_accept_thread(void* arg) {
  * q - Client quits
  * a - Summary 1 - shows average moves to reach center
  * b - Summary 2 - shows probability to reach center
+ *
+ * Made with help from AI.
  */
 void* server_recv_thread(void* arg) {
   recv_data_t* data = arg;
@@ -244,13 +254,7 @@ void* server_recv_thread(void* arg) {
   int clientPos = data->clientPos;
   client_data_t* c = &ctx->cManagement.clients[clientPos];
   socket_t sock = c->ipc.sock;
-  _Bool isAdmin = 0;
-
-  if (!ctx->cManagement.creatorSet &&
-    ctx->cManagement.creatorPos <= 0 &&
-    c == &ctx->cManagement.clients[ctx->cManagement.creatorPos]) {
-    isAdmin = 1;
-  }
+  printf("Server: recv thread started for fd=%d\n", c->ipc.sock.fd);
 
   free(arg);
 
@@ -278,7 +282,8 @@ void* server_recv_thread(void* arg) {
         pthread_mutex_unlock(&ctx->viewMutex);
         break;
       case 'f':
-        if (isAdmin) {
+        if (c->isAdmin) {
+          printf("Server: Shutdown requested by admin\n");
           atomic_store(ctx->running, 0);
         }
         break;
@@ -286,9 +291,6 @@ void* server_recv_thread(void* arg) {
         atomic_store(&c->active,0);
         pthread_mutex_lock(&ctx->cManagement.cMutex);
         c->state = CLIENT_TERMINATED;
-        if (isAdmin) {
-          ctx->cManagement.creatorPos = -1;
-        }
         pthread_mutex_unlock(&ctx->cManagement.cMutex);
         printf("Server: Terminating recv thread\n");
         return NULL;
@@ -313,9 +315,6 @@ void* server_recv_thread(void* arg) {
   atomic_store(&c->active,0);
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   c->state = CLIENT_TERMINATED;
-  if (isAdmin) {
-    ctx->cManagement.creatorPos = -1;
-  }
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
   printf("Server: Terminating recv thread\n");
   return NULL;
