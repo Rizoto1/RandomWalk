@@ -18,7 +18,7 @@
  * If initialization succeeds return 0, otherwise 1.
  */
 static int server_load(char** argv, simulation_t* sim) {
-  if(!sim_load_from_file(sim, argv[4])) {
+  if(!sim_load_from_file(sim, argv[4], atoi(argv[5]), argv[6])) {
     return 1;
   }
   sim->replications = atoi(argv[5]);

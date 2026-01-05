@@ -44,7 +44,9 @@ void trajectory_reset(trajectory_t* t) {
  * Destroys trajectory.
  */
 void trajectory_destroy(trajectory_t* t) {
-  free(t->positions);
+  if (t->positions) {
+    free(t->positions);
+  }
   t->positions = NULL;
 }
 

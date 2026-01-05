@@ -15,7 +15,6 @@
 #include <game/walker.h>
 #include "ipc/ipcUtil.h"
 #include "ui.h"
-#include <math.h>
 
 static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
   int count = hdr->w * hdr->h;
@@ -182,6 +181,56 @@ void createServer(int type, int port,
       obstBuf,
       replBuf,
       kBuf,
+      savePath,
+      NULL     // koniec pre exec()
+    };
+    execv("./server/server", args);
+    perror("exec");
+  }
+
+  ipc_ctx_t ipc;
+  if(ipc_init(&ipc, 1, "sock", port)) {
+    perror("Client: Connection init failed\n");
+    return;
+  };
+  client_context_t ctx;
+  if(ctx_init(&ctx, &ipc)) {
+    perror("Client: Client init failed\n");
+    return;
+  };
+  sleep(5);
+
+  simulation_menu(&ctx);
+  ctx_destroy(&ctx);
+}
+
+void loadServer(int serverLoadType,
+                int type, int port,
+                int replications, char* loadPath, char* savePath) {
+  pid_t pid = fork();
+  char serModeBuf[16], ipcBuf[16], portBuf[16], replBuf[16];
+
+  /* sprintf alebo bezpečnejší snprintf */
+  snprintf(serModeBuf, sizeof(serModeBuf), "%d", serverLoadType);
+  snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
+  snprintf(portBuf, sizeof(portBuf), "%d", port);
+  snprintf(replBuf, sizeof(replBuf), "%d", replications);
+
+  if (pid < 0) {
+    perror("fork not forking");
+    exit(1);
+}
+  sleep(1);
+
+  if (pid == 0) {
+    // child → exec server
+    char *args[] = {
+      "server",
+      serModeBuf,
+      "sock",
+      portBuf,
+      loadPath,
+      replBuf,
       savePath,
       NULL     // koniec pre exec()
     };

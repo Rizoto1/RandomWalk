@@ -109,6 +109,7 @@ printf(
 }
 
 void newGame(void) {
+  clear_screen();
   int width, height, obstaclePercentage = 0;
   world_type_t worldType;
   printf("Enter world width and height:\n");
@@ -182,12 +183,10 @@ void newGame(void) {
   }*/
 
   int port = 0;
-  _Bool valid = 0;
-  while (!valid) {
+  while (1) {
     printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
     scanf("%d", &port); 
     if (port >= 0 && port < 10000) {
-      valid = 1;
       break;
     }
     printf("Invalid port\n");
@@ -210,12 +209,10 @@ void newGame(void) {
 void connectToGame(void) {
   clear_screen();
   int port;
-  _Bool valid = 0;
-  while (!valid) {
+  while (1) {
     printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
     scanf("%d", &port); 
     if (port >= 0 && port < 10000) {
-      valid = 1;
       break;
     }
     printf("Invalid port\n");
@@ -242,7 +239,42 @@ void connectToGame(void) {
 }
 
 void continueInGame(void) {
+  clear_screen();
+  int replications;
+  printf("Enter number of replications:\n");
+  scanf("%d", &replications);
   
+  int port;
+  while (1) {
+    printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
+    scanf("%d", &port); 
+    if (port >= 0 && port < 10000) {
+      break;
+    }
+    printf("Invalid port\n");
+  }
+  
+  char fLoadPath[64];
+  printf("Enter file name from which simulation will be loaded:\n");
+  scanf("%63s", fLoadPath);
+
+  char fSavePath[64];
+  printf("Enter file name where simulation will be saved:\n");
+  scanf("%63s", fSavePath);
+  
+  int ipc = 2;
+  printf("Enter what type of IPC should server use:\n");
+  printf("0) Pipe\n");
+  printf("1) Semaphore\n");
+  printf("2) Socket (default)\n");
+  /*scanf("%d", &ipc);
+  if (ipc < 0) {
+    ipc = 0;
+  } else if (ipc > 2) {
+    ipc = 2;
+  }*/
+
+  loadServer(0, ipc, port, replications, fLoadPath, fSavePath);
 }
 
 void mainMenu(void) {

@@ -215,9 +215,7 @@ int w_load_from_file(world_t* this, const char* fPath) {
   }
 
   // Initialize world
-  w_init(this, width, height, WO_OBSTACLES, 0);
-
-  this->worldType = (world_type_t)typeNum;
+  w_init(this, width, height, (world_type_t)typeNum, 0);
 
   if (typeNum == 0) {
     // calloc already zeroed obstacles – nothing to read

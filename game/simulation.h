@@ -34,7 +34,7 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
 void sim_destroy(simulation_t* this);
 int sim_step(simulation_t* this);
 int sim_run_rep(simulation_t* this);
-int sim_load_from_file(simulation_t * this, const char* fPath);
+int sim_load_from_file(simulation_t* this, const char* fLoadPath, int replications, const char* fSavePath);
 int sim_save_to_file(simulation_t* this);
 
 #endif //SIMULATION_H

@@ -12,5 +12,7 @@ void createServer(int type, int port,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
                   int serverLoadType,
                   int replications, int k, char* savePath);
-
+void loadServer(int serverLoadType,
+                int type, int port,
+                int replications, char* loadPath, char* savePath);
 #endif

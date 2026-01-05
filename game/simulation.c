@@ -17,7 +17,7 @@
  * Initializes simulation.
  * If everything succeds returns 1, otherwise 0.
  */
-_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, const char* fPath) {
+_Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, const char* fLoadPath) {
 
   if (!this) {
     perror("Simulation doesnt exist");
@@ -36,8 +36,8 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
   this->pointsStarted = 0;
   this->state = SIM_INIT_POINT;
   trajectory_init(this->trajectory, k);
-  if (fPath) {
-    this->fSavePath = fPath;
+  if (fLoadPath) {
+    this->fSavePath = fLoadPath;
     return 1;
   }
   perror("Simulation: path to file doesnt exist");
@@ -225,21 +225,22 @@ static void deriveWorldFilename(const char* mainFile, char* worldFileOut) {
  *
  * Made with help from AI.
  */
-int sim_load_from_file(simulation_t* this, const char* fPath) {
+int sim_load_from_file(simulation_t* this, const char* fLoadPath, int replications, const char* fSavePath) {
   if (!this) {
     perror("Simulation load: Invalid simulation");
     return 0;
   }
 
-  FILE* f = fopen(this->fSavePath, "r");
+  FILE* f = fopen(fLoadPath, "r");
   if (!f) {
     perror("Simulation load: file doesn't exist");
     return 0;
   }
 
   char worldPath[256];
-  deriveWorldFilename(fPath, worldPath);
-  if (w_load_from_file(&this->world, worldPath) == 0) {
+  deriveWorldFilename(fLoadPath, worldPath);
+  world_t world;
+  if (w_load_from_file(&world, worldPath) == 0) {
     perror("Simulation load: Failed to load world\n");
     fclose(f);
     return 0;
@@ -258,26 +259,15 @@ int sim_load_from_file(simulation_t* this, const char* fPath) {
 
   walker_t walker;
   walker_init(&walker, up, down, right, left);
-  this->walker = walker;
-  int redundant;
-  if (fscanf(f, "%d\n", &redundant) != 1) {
-    perror("Simulation load: invalid replicationsqn");
-    fclose(f);
-    return 0;
-  }
 
-  if (fscanf(f, "%d\n", &this->k) != 1) {
+  int k;
+  if (fscanf(f, "%d\n", &k) != 1) {
     perror("Simulation load: failed to load k\n");
     fclose(f);
     return 0;
   }
-
-  int width = this->world.width;
-  int height = this->world.height;
-
-  if (!this->pointStats) {
-    this->pointStats = calloc(width * height, sizeof(point_statistics_t));
-  }
+  
+  sim_init(this, walker, world, replications, k, fSavePath);
 
   fclose(f);
   return 1;
@@ -312,7 +302,6 @@ int sim_save_to_file(simulation_t* this) {
   fprintf(f, "%f %f %f %f\n",
           this->walker.prob.up, this->walker.prob.down,
           this->walker.prob.right, this->walker.prob.left);
-  fprintf(f, "%d\n", this->replications);
   fprintf(f, "%d\n", this->k);
 
   int width = this->world.width;
@@ -321,7 +310,11 @@ int sim_save_to_file(simulation_t* this) {
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       point_statistics_t* cs = get_point_statistic(this, &(position_t){x, y});
-      fprintf(f, "%d;%ld", cs->reachedCenter, cs->totalSteps);
+      if (w_in_obstacle(&this->world, &(position_t){x,y})) {
+        fprintf(f, "%s;%-4s", "XXX.XX\0", "X.XX\0");
+      } else {
+        fprintf(f, "%06.2f;%.2f", ct_avg_steps(cs) , ct_reach_center_prob(cs, this->replications));
+      }
       if (x < width - 1)
         fprintf(f, " ");
     }
