@@ -15,6 +15,7 @@
 
 /*
  * Initializes server from file.
+ * If initialization succeeds return 0, otherwise 1.
  */
 static int server_load(char** argv, simulation_t* sim) {
   if(!sim_load_from_file(sim, argv[4])) {
@@ -27,6 +28,7 @@ static int server_load(char** argv, simulation_t* sim) {
 
 /*
  * Initializes server based on arguments.
+ * If initialization succeeds return 0, otherwise 1.
  */
 static int server_create(char** argv, simulation_t* sim) {
   printf("Server: Initializing walker\n");
@@ -132,6 +134,7 @@ static void start(server_ctx_t* ctx) {
  * Initializes server base on server load type.
  * 0 - init from file
  * 1 - init based on argv
+ * If all initializations succeed and server safely ends return 0, otherwise 1.
  */
 int server_init(char** argv) {
   simulation_t sim = {0};
@@ -181,6 +184,7 @@ int server_init(char** argv) {
  * This function accepts new clients.
  * If the SERVER_CAPACITY is reached it waits for a user to disconnect.
  * Otherwise creates a new user and binds receive thread to him.
+ * As an argument it is expecting server_ctx_t.
  *
  * Made with help from AI.
  */
@@ -225,6 +229,7 @@ void* server_accept_thread(void* arg) {
 
 /*
  * This function receives data from user. One function is for one client.
+ * As an argument it is excepcting recv_data_t.
  * Based on certain inputs it changes what will be sent to clients.
  * i - Interactive - shows trajectory of walker
  * s - Summary - Statistical display

@@ -9,6 +9,14 @@
 #include <string.h>
 #include <unistd.h>
 
+//TODO
+//change file loading and saving based on task
+
+
+/*
+ * Initializes simulation.
+ * If everything succeds returns 1, otherwise 0.
+ */
 _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replications, int k, const char* fPath) {
 
   if (!this) {
@@ -36,6 +44,9 @@ _Bool sim_init(simulation_t* this, walker_t walker, world_t world, int replicati
   return 0;
 }
 
+/*
+ * Destroys simulation.
+ */
 void sim_destroy(simulation_t* this) {
   if (!this) {
     perror("Simulation doesnt exist");
@@ -49,10 +60,16 @@ void sim_destroy(simulation_t* this) {
   this->trajectory =NULL;
 }
 
+/*
+ * Returns point_statistics_t based on position.
+ */
 static point_statistics_t* get_point_statistic(simulation_t* this, position_t* pos) {
   return &this->pointStats[pos->y * this->world.width + pos->x];
 }
 
+/*
+ * Increments postions from {0,0} (down-left) to {y-1,x-1} (top-right)
+ */
 static void increment_positions(world_t* w, position_t* p) {
   p->x++;
   if (p->x >= w->width) {
@@ -64,6 +81,11 @@ static void increment_positions(world_t* w, position_t* p) {
   }
 }
 
+/*
+ * As simulation goes it creates trajectory based on walker moves.
+ * If it reaches center return 1, otherwise return 0.
+ * If error occured return -1.
+ */
 static int sim_create_trajectory(simulation_t* this) {
   if (!this || !this->trajectory) {
     perror("Simulation doesnt exist");
@@ -73,7 +95,6 @@ static int sim_create_trajectory(simulation_t* this) {
   position_t center = {(int)floor((double)this->world.width / 2), (int)floor((double)this->world.height / 2)};
 
   position_t newPos = this->walker.pos;
-    /* dosiahnutý stred */
     if (pos_equals(&newPos, &center)) {
       point_statistics_t* cs =
         get_point_statistic(this, &this->startingPoint);
@@ -97,7 +118,6 @@ static int sim_create_trajectory(simulation_t* this) {
       continue;
     }
 
-    /* úspešný krok */
     this->walker.pos = newPos;
     trajectory_add(this->trajectory, newPos);
 
@@ -105,11 +125,12 @@ static int sim_create_trajectory(simulation_t* this) {
     return 0;
   }
 
-  /* nepodarilo sa pohnúť (zriedkavé) */
   return 0;
 }
 
-
+/*
+ * Does one full replication.
+ */
 int sim_run_rep(simulation_t* this) {
   if (!this) return -1;
   
@@ -123,7 +144,9 @@ int sim_run_rep(simulation_t* this) {
   return result;
 }
 
-
+/*
+ * Does one step in simulation based on state machine.
+ */
 int sim_step(simulation_t* s) {
   if (!s) return -1;
 
@@ -183,7 +206,7 @@ int sim_step(simulation_t* s) {
 }
 
 /*
- *
+ * Creates a new fileName by adding _world to mainFile.
  */
 static void deriveWorldFilename(const char* mainFile, char* worldFileOut) {
   char name[256];
@@ -196,7 +219,11 @@ static void deriveWorldFilename(const char* mainFile, char* worldFileOut) {
 }
 
 /*
+ * Loads simualtion from file. Firstly it tries to load world from file.
+ * If it succeds it continues to load simulation from file.
+ * If overall load was succesful returns 1, otherwise 0.
  *
+ * Made with help from AI.
  */
 int sim_load_from_file(simulation_t* this, const char* fPath) {
   if (!this) {
@@ -257,7 +284,7 @@ int sim_load_from_file(simulation_t* this, const char* fPath) {
 }
 
 /*
- *This function save simulation to a file. First it tries to save a world, whom save file is derived from fSavePath
+ *This function saves simulation to a file. First it tries to save a world, whom save file is derived from fSavePath
  *by adding "_world" to the file name. If saving the world was successful then it proceeds to save simulation related
  *data to fSavePath.
  *If overall saving process was successful returns 1, otherwise 0.

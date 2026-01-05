@@ -7,17 +7,25 @@
 #include <stdatomic.h>
 #include <string.h>
 
+/*
+ * Add client to client management.
+ * If addition is succesful return index of added user. Otherwise returns -1.
+ */
 int add_client(client_management_t* mng, client_data_t c) {
     for (int i = 0; i < SERVER_CAPACITY; i++) {
         if (mng->clients[i].state == CLIENT_UNUSED) {
             mng->clients[i] = c;
             mng->clients[i].state = CLIENT_ACTIVE;
             mng->clientCount++;
-            return i; // index klienta
+            return i;
         }
     }
-    return -1; // plné
+    return -1;
 }
+
+/*
+ * Removes client from client management based on pos.
+ */
 void remove_client(client_management_t* mng, int pos) {
     if (mng->clients[pos].state == CLIENT_ACTIVE || mng->clients[pos].state == CLIENT_TERMINATED) {
         ipc_destroy(&mng->clients[pos].ipc);
@@ -33,6 +41,10 @@ void remove_client(client_management_t* mng, int pos) {
     }
 }
 
+/*
+ * Initializes server context.
+ * If initialization succeeds return 0, otherwise 1.
+ */
 int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, ipc_ctx_t* ipc) {
   if (!ctx || !sim || !running || !ipc) return 1;
   memset(ctx, 0, sizeof(*ctx)); 
@@ -50,6 +62,9 @@ int server_ctx_init(server_ctx_t* ctx, simulation_t* sim, atomic_bool* running, 
   return 0;
 }
 
+/*
+ * Destroys server context.
+ */
 void server_ctx_destroy(server_ctx_t* ctx) {
   if (!ctx) return;
   walker_destroy(&ctx->sim->walker);

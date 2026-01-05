@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
+/*
+ * Initializes walker.
+ * If it succeds return 1, otherwise 0.
+ */
 _Bool walker_init(walker_t* this, double probUp, double probDown, double probRight, double probLeft) {
   if (!this) return 0;
 
@@ -18,6 +22,9 @@ _Bool walker_init(walker_t* this, double probUp, double probDown, double probRig
   return 1;
 }
 
+/*
+ * Destroys walker.
+ */
 void walker_destroy(walker_t* this) {
   if(!this) return;
   memset(this, 0, sizeof(*this));
@@ -28,6 +35,9 @@ typedef struct {
   int dy;
 } dir_delta_t;
 
+/*
+ * Directional deltas.
+ */
 static const dir_delta_t DIR_DELTAS[] = {
   {0, 1},   //up
   {0, -1},  //down
@@ -35,6 +45,9 @@ static const dir_delta_t DIR_DELTAS[] = {
   {-1, 0}   //left
 };
 
+/*
+ * Returns directional delta based on probability.
+ */
 static movement_dir_t probability_to_direciton(walker_t* this, const double* probability) {
   if (*probability < this->prob.left) {
     return LEFT;
@@ -47,6 +60,9 @@ static movement_dir_t probability_to_direciton(walker_t* this, const double* pro
   }
 }
 
+/*
+ * Moves walker to newPos based on dir_prob.
+ */
 void walker_move(walker_t* this, position_t* newPos, const double dir_prob) {
   if (!this) {
     newPos = NULL;
@@ -59,7 +75,9 @@ void walker_move(walker_t* this, position_t* newPos, const double dir_prob) {
   newPos->y = y;
 }
 
-//if sum of probabilities is 1 return 1, otherwise return 0
+/*
+ * if sum of probabilities is 1 return 1, otherwise return 0
+ */
 _Bool validate_probabilities(probability_dir_t* prob) {
   if (!prob) return 0;
   return prob->down + prob->up + prob->left + prob->right == 1; 

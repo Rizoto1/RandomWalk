@@ -7,6 +7,10 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 
+/*
+ * Initializes socket for server based on port.
+ * If it succeeds return socket_t with fd > 0, otherwise returns socket_t with fd == -1.
+ */
 socket_t socket_init_server(int port) {
   socket_t s;
   int srv = socket(AF_INET, SOCK_STREAM, 0);
@@ -30,6 +34,10 @@ socket_t socket_init_server(int port) {
   return s;
 }
 
+/*
+ * Accepts clients and listens for them in a time interval.
+ * If it accepts new client return socket_t with fd > 0, otherwise returns socket_t with fd <= 0.
+ */
 socket_t server_accept_client(int sfd) {
   fd_set readfds;
   FD_ZERO(&readfds);
@@ -39,7 +47,6 @@ socket_t server_accept_client(int sfd) {
   tv.tv_sec = WAIT_SECONDS;
   tv.tv_usec = 0;
 
-  // čaká max. timeout_ms na dáta
   int result = select(sfd + 1, &readfds, NULL, NULL, &tv);
   socket_t s;
 
@@ -57,7 +64,12 @@ socket_t server_accept_client(int sfd) {
   return s;
 }
 
+/*
+ * Initializes socket for client.
+ * If it succeds returns socket_t with fd > 0, otherwise fd is <= 0.
+ */
 socket_t socket_init_client(const char* addrStr, int port) {
+  if (!addrStr) return (socket_t){-1};
   socket_t s;
   s.fd = socket(AF_INET, SOCK_STREAM, 0);
   if (s.fd < 0) {
@@ -83,11 +95,19 @@ socket_t socket_init_client(const char* addrStr, int port) {
   return s;
 }
 
+/*
+ * Sends socket.
+ */
 int socket_send(socket_t* s, const void* buf, size_t len) {
+  if(!s || !buf) return -1;
   return send(s->fd, buf, len, 0);
 }
 
+/*
+ * Receives socket.
+ */
 int socket_recv(socket_t* s, void* buf, size_t len) {
+  if(!s || !buf) return -1;
   /*fd_set readfds;
   FD_ZERO(&readfds);
   FD_SET(s->fd, &readfds);
@@ -96,7 +116,6 @@ int socket_recv(socket_t* s, void* buf, size_t len) {
   tv.tv_sec = WAIT_SECONDS;
   tv.tv_usec = 0;
 
-  // čaká max. timeout_ms na dáta
   int result = select(s->fd + 1, &readfds, NULL, NULL, &tv);
 
   if (result == 0) {
@@ -108,10 +127,18 @@ int socket_recv(socket_t* s, void* buf, size_t len) {
   return recv(s->fd, buf, len, 0);
 }
 
+/*
+ * Closes socket.
+ */
 void socket_close(socket_t* s) { 
+  if(!s) return;
   close(s->fd);
 }
 
+/*
+ * Shutsdown socket.
+ */
 void socket_shutdown(socket_t* s) {
+  if(!s) return;
   shutdown(s->fd, SHUT_RDWR);
 }

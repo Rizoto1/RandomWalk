@@ -5,6 +5,10 @@
 #include <string.h>
 #include <stdio.h>
 
+/*
+ * Initializes ipc context based on ipc type and who(0 - server, 1 - client)
+ * If initialization succeeds return 0, otherwise 1; 
+ */
 int ipc_init(ipc_ctx_t* ipc, int who, const char* type, int port) {
   if (!ipc) return 1;
   memset(ipc, 0, sizeof(ipc_ctx_t));
@@ -32,6 +36,10 @@ int ipc_init(ipc_ctx_t* ipc, int who, const char* type, int port) {
   return 0;
 }
 
+/*
+ * Destroys ipc context.
+ * If destroying succeeds return 0, otherwise 1;
+ */
 int ipc_destroy(ipc_ctx_t* ipc) {
   if (!ipc) return 1;
   switch (ipc->type) {

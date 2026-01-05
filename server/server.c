@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 //TODO
-//for summary mode, if there is obstacle send -1 to represent an obstacle. And interpret this in client as # or X
+//implement admin for the first user that connects to the server.
 
 //argc size 1(file path) + 1 (load/create sim)
 //load sim (0) - 2(ipc) load file path, replications, save file path

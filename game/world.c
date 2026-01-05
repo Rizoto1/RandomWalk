@@ -54,7 +54,6 @@ static void w_all_nodes_reachable(world_t* this) {
     }
   }
 
-  // FIX: mark unreachable non-obstacles as obstacles
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
       if (!visited[y][x]) {
