@@ -5,11 +5,11 @@
 #include <ipc/ipcSocket.h>
 
 void draw_interactive_map(const char* buffer, position_t* posBuf, packet_header_t* hdr);
-void draw_summary_map(char* buffer, position_t* posBuf, packet_header_t* hdr);
-void newGame(void);
-void connectToGame(void);
-void continueInGame(void);
-void mainMenu(void);
+void draw_summary_map(double* buf, packet_header_t* hdr);
+void new_game(void);
+void connect_to_game(void);
+void load_game(void);
+void main_menu(void);
 
 #endif
 

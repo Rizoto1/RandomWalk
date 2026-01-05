@@ -9,13 +9,36 @@
 #include <game/walker.h>
 #include <math.h>
 #include <stdatomic.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdio.h>
-#define PADDING 
+#include <string.h>
+#include <stdlib.h>
 
+/*
+ * Draws summary view mode.
+ */
+void draw_summary_map(double* buf, packet_header_t* hdr) {
+  printf("\nReplication %d / %d\n", hdr->cur, hdr->total);
+
+  for (int i = 0; i < hdr->h; i++) {
+    for (int j = 0; j < hdr->w; j++) {
+      int idx = (i * hdr->w + j);
+      if (buf[idx] == -1) {
+        printf("  #  ");
+        continue;
+      }
+      printf("%.2f ", buf[idx]);
+    }
+    printf("\n");
+  }
+
+}
+
+/*
+ * Draws interactive view mode.
+ */
 void draw_interactive_map(const char* world, position_t* path, packet_header_t* hdr) {
   int w = hdr->w;
   int h = hdr->h;
@@ -28,18 +51,19 @@ void draw_interactive_map(const char* world, position_t* path, packet_header_t* 
     for (int x = 0; x < w; x++) {
       int idx = y * w + x;
 
-      // 1️⃣ ak je toto pozícia chodca (posledný krok)
+      //walker
       if (path[count-1].x == x && path[count-1].y == y) {
         printf(" C ");     // C = current position
         continue;
       }
 
+      //walker starting pos
       if (path[0].x == x && path[0].y == y) {
         printf(" x ");
         continue;
       }
 
-      // 2️⃣ ak je toto súčasť trajektórie (hociaké predchádzajúce x,y)
+      //walker trajectory
       _Bool printed = 0;
       for (int p = 0; p < count-1; p++) {
         if (path[p].x == x && path[p].y == y) {
@@ -50,65 +74,26 @@ void draw_interactive_map(const char* world, position_t* path, packet_header_t* 
       }
       if (printed) continue;
 
-      // 3️⃣ prekážka
+      //obstacle
       if (world[idx] == 1) {
         printf(" # ");
         continue;
       }
 
-      // 4️⃣ stred
+      //middle
       if (x == center.x && y == center.y) {
         printf(" + ");
         continue;
       }
 
-      // 5️⃣ prázdne políčko
+      //empty point
       printf(" . ");
     }
     printf("\n");
   }
 }
 
-
-static void printMM(const char* msg) {
-  clear_screen();
-printf(
-        "       ██████╗  █████╗ ███╗   ██╗██████╗  ██████╗ ███╗   ███╗\n"
-        "       ██╔══██╗██╔══██╗████╗  ██║██╔══██╗██╔═══██╗████╗ ████║\n"
-        "       ██████╔╝███████║██╔██╗ ██║██║  ██║██║   ██║██╔████╔██║\n"
-        "       ██╔══██╗██╔══██║██║╚██╗██║██║  ██║██║   ██║██║╚██╔╝██║\n"
-        "       ██║  ██║██║  ██║██║ ╚████║██████╔╝╚██████╔╝██║ ╚═╝ ██║\n"
-        "       ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝     ╚═╝\n"
-        "\n"
-        "               ██╗    ██╗ █████╗ ██╗     ██╗  ██╗\n"
-        "               ██║    ██║██╔══██╗██║     ██║ ██╔╝\n"
-        "               ██║ █╗ ██║███████║██║     █████╔╝ \n"
-        "               ██║███╗██║██╔══██║██║     ██╔═██╗ \n"
-        "               ╚███╔███╔╝██║  ██║███████╗██║  ██╗\n"
-        "                ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝\n"
-        "\n"
-        "            ---------------------------------\n"
-        "\n"
-        "                    [ 1 ]  NEW GAME\n"
-        "                    [ 2 ]  CONNECT\n"
-        "                    [ 3 ]  RERUN\n"
-        "                    [ 0 ]  EXIT\n"
-        "\n"
-        "            ---------------------------------\n"
-    );
-  
-  
-  if (msg) {
-    msg += '\0';
-    printf(
-        "                    Error: %s",
-      msg);
-  }
-  printf(
-        "                    Choose: ");
-}
-
-void newGame(void) {
+void new_game(void) {
   clear_screen();
   int width, height, obstaclePercentage = 0;
   world_type_t worldType;
@@ -199,14 +184,14 @@ void newGame(void) {
   scanf("%d", &num);
   //if (num == 0) return;
 
-  createServer(ipc, port,
+  create_server(ipc, port,
                up, down, right, left,
                width, height, worldType, obstaclePercentage,
                1,
                replications, k, fPath); 
 }
 
-void connectToGame(void) {
+void connect_to_game(void) {
   clear_screen();
   int port;
   while (1) {
@@ -238,65 +223,122 @@ void connectToGame(void) {
   ctx_destroy(&ctx);
 }
 
-void continueInGame(void) {
-  clear_screen();
+/*
+ * Gets necessary data from user to run server.
+ */
+void load_game(void) {
+  _Bool invalidInput = 0;
+
   int replications;
-  printf("Enter number of replications:\n");
-  scanf("%d", &replications);
-  
+  while (1) {
+    if (invalidInput) {
+      print_article(0);
+      print_message("Invalid input.\n", 1, 0);
+    } else {
+      print_article(1);
+    }
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    print_message("Please enter number of replications the simulation should replicate.\nReplications: ", 0, 1);
+    int rs = read_input(INPUT_INT, &replications, 0);
+    if (rs == 1) return;
+    else if (rs == 0) break;
+    invalidInput = 1;
+  } 
+
   int port;
   while (1) {
-    printf("Please insert port the port should be from 0 to 9999. \n Insert: ");
-    scanf("%d", &port); 
-    if (port >= 0 && port < 10000) {
-      break;
-    }
-    printf("Invalid port\n");
-  }
-  
-  char fLoadPath[64];
-  printf("Enter file name from which simulation will be loaded:\n");
-  scanf("%63s", fLoadPath);
-
-  char fSavePath[64];
-  printf("Enter file name where simulation will be saved:\n");
-  scanf("%63s", fSavePath);
-  
-  int ipc = 2;
-  printf("Enter what type of IPC should server use:\n");
-  printf("0) Pipe\n");
-  printf("1) Semaphore\n");
-  printf("2) Socket (default)\n");
-  /*scanf("%d", &ipc);
-  if (ipc < 0) {
-    ipc = 0;
-  } else if (ipc > 2) {
-    ipc = 2;
-  }*/
-
-  loadServer(0, ipc, port, replications, fLoadPath, fSavePath);
-}
-
-void mainMenu(void) {
-  char input;
-  printMM(NULL);
-  while (1) {
-    scanf("%c", &input);
-    if (input == '0') {
-      return;
-    }
-
-    if (input == '1') {
-      newGame();
-    } else if (input == '2') {
-      connectToGame();
-    } else if ( input == '3') {
-      continueInGame();
+    if (invalidInput) {
+      print_article(0);
+      print_message("Invalid port.\n", 1, 0);
     } else {
-      printMM("Invalid input. \n");
+      print_article(1);
     }
+    print_article(1);
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    print_message("Please insert port the port should be from 0 to 9999.\nPort: ", 0, 1);
+    int rs = read_input(INPUT_INT, &port, 0);
+    if (rs == 1) return;
+    else if (rs == 0 &&
+        port >= 0 && port < 10000) break;
+    invalidInput = 1;
   }
-  clear_screen();
-  return;
+  invalidInput = 0;
+
+  while (1) {
+    if (invalidInput) {
+      print_article(0);
+      print_message("File does not exist.\n", 1, 0);
+    } else {
+      print_article(1);
+    }
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    char fLoadPath[64];
+    print_message("Please enter file name from which simulation will be loaded.\nFile name: ", 0, 1);
+    int result = read_input(INPUT_STRING, fLoadPath, 64);
+    if (result ==1) return;
+    else if (result == 0) {
+      FILE* f = fopen(fLoadPath, "r");
+      if (!f) invalidInput = 1;
+      else {
+        fclose(f);
+        break;
+      }
+    }
+
+    print_article(1);
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    char fSavePath[64];
+    print_message("Please enter file name to which simulation will be saved.\nFile name: ", 0, 1);
+    if (read_input(INPUT_STRING, fSavePath, 64)) return;
+
+    print_article(1);
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    int ipc = 2;
+    print_message("Please enter what type of IPC should server use:\n0) Pipe - not implemented yet\n1) Semaphore - not implemented yet\n2) Socket (default)\nIPC: --------\n", 0, 1);
+    sleep(1);
+
+    load_server(0, ipc, port, replications, fLoadPath, fSavePath);
+  }
 }
+
+  /*
+ * This is main loop in which user is during clients lifetime.
+ * Based on user input it branches:
+ * 1 - create new game
+ * 2 - connect to game
+ * 3 - load game from file
+ * 0 - exit
+ */
+  void main_menu(void) {
+    char input;
+    print_article(1);
+    print_mm();
+    while (1) {
+      scanf("%c", &input);
+      if (input == '0') {
+        break;
+      }
+
+      if (input == '1') {
+        new_game();
+        print_article(1);
+        print_mm();
+      } else if (input == '2') {
+        connect_to_game();
+        print_article(1);
+        print_mm();
+      } else if ( input == '3') {
+        load_game();
+        print_article(1);
+        print_mm();
+      } else {
+        clear_screen();
+        print_article(0);
+        print_message("Invalid input.\n", 1, 0);
+        print_mm();
+      }
+    }
+    clear_screen();
+    return;
+  }
 

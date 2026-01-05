@@ -7,12 +7,12 @@
 void* thread_receive(void* arg);
 void* thread_send(void* arg);
 void simulation_menu(client_context_t* context);
-void createServer(int type, int port,
+void create_server(int type, int port,
                   double up, double down, double right, double left,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
                   int serverLoadType,
                   int replications, int k, char* savePath);
-void loadServer(int serverLoadType,
+void load_server(int serverLoadType,
                 int type, int port,
                 int replications, char* loadPath, char* savePath);
 #endif

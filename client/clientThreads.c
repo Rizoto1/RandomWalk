@@ -21,18 +21,7 @@ static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
   double* buffer = malloc(count * sizeof(double));
   socket_recv(&ctx->ipc->sock, buffer, count * sizeof(double));
 
-  printf("\nReplication %d / %d\n", hdr->cur, hdr->total);
-  for (int i = 0; i < hdr->h; i++) {
-    for (int j = 0; j < hdr->w; j++) {
-      int idx = (i * hdr->w + j);
-      if (buffer[idx] == -1) {
-        printf("  #  ");
-        continue;
-      }
-      printf("%.2f ", buffer[idx]);
-    }
-    printf("\n");
-  }
+  draw_summary_map(buffer, hdr);
 
   free(buffer);
 }
@@ -134,7 +123,7 @@ void simulation_menu(client_context_t* context) {
 
 }
 
-void createServer(int type, int port,
+void create_server(int type, int port,
                   double up, double down, double right, double left,
                   int width, int height, world_type_t worldType, int obstaclePercentage,
                   int serverLoadType,
@@ -204,7 +193,7 @@ void createServer(int type, int port,
   ctx_destroy(&ctx);
 }
 
-void loadServer(int serverLoadType,
+void load_server(int serverLoadType,
                 int type, int port,
                 int replications, char* loadPath, char* savePath) {
   pid_t pid = fork();
