@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <semaphore.h>
 
+/*
+ * Not tested and fully implemented yet.
+ */
+
 typedef struct {
     void* mem;
     int shmid;

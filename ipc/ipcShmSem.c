@@ -5,6 +5,10 @@
 #include <fcntl.h>
 #include <string.h>
 
+/*
+ * Not tested and fully implemented yet.
+ */
+
 shm_t shm_init(const char* keyFile,const char* semName,int size,int create){
     shm_t m;
     key_t key = ftok(keyFile,65);

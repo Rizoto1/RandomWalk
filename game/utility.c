@@ -51,7 +51,7 @@ void trajectory_destroy(trajectory_t* t) {
 }
 
 /*
- * Calculates average steps walker needs to do to reach centčer.
+ * Calculates average steps walker needs to do to reach center.
  */
 double ct_avg_steps(point_statistics_t* ct) {
   if (ct->reachedCenter == 0) {

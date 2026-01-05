@@ -3,6 +3,10 @@
 #include <sys/stat.h>
 #include "ipcPipe.h"
 
+/*
+ * Not tested and fully implemented yet.
+ */
+
 pipe_t pipe_init(const char* name) {
   pipe_t p;
   mkfifo(name, 0666);

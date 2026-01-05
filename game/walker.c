@@ -37,6 +37,8 @@ typedef struct {
 
 /*
  * Directional deltas.
+ *
+ * Made with help from AI.
  */
 static const dir_delta_t DIR_DELTAS[] = {
   {0, 1},   //up
@@ -61,7 +63,9 @@ static movement_dir_t probability_to_direciton(walker_t* this, const double* pro
 }
 
 /*
- * Moves walker to newPos based on dir_prob.
+ * Adds walkers position and new direction based on dir_prob. Sets this to newPos.
+ *
+ * Made with help from AI.
  */
 void walker_move(walker_t* this, position_t* newPos, const double dir_prob) {
   if (!this) {

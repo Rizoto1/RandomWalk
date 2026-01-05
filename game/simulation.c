@@ -9,10 +9,6 @@
 #include <string.h>
 #include <unistd.h>
 
-//TODO
-//change file loading and saving based on task
-
-
 /*
  * Initializes simulation.
  * If everything succeds returns 1, otherwise 0.
@@ -146,6 +142,17 @@ int sim_run_rep(simulation_t* this) {
 
 /*
  * Does one step in simulation based on state machine.
+ * SIM_INIT_POINT - new point in world. Resets and sets all relevant data.
+ * SIM_WALKING - moves walker by one step
+ * SIM_NEXT_POINT - trajectory was finished move to next point
+ * SIM_NEXT_REPLICATION - one replication was finished start new one
+ * SIM_DONE - all replications were done.
+ *
+ * Returns:
+ * -1 - if error occured
+ *  0 - when step was succesful
+ *  1 - replication was finished
+ *  2 - simulation is done
  */
 int sim_step(simulation_t* s) {
   if (!s) return -1;
@@ -221,7 +228,7 @@ static void deriveWorldFilename(const char* mainFile, char* worldFileOut) {
 /*
  * Loads simualtion from file. Firstly it tries to load world from file.
  * If it succeds it continues to load simulation from file.
- * If overall load was succesful returns 1, otherwise 0.
+ * If load was succesful returns 1, otherwise 0.
  *
  * Made with help from AI.
  */
@@ -277,7 +284,7 @@ int sim_load_from_file(simulation_t* this, const char* fLoadPath, int replicatio
  *This function saves simulation to a file. First it tries to save a world, whom save file is derived from fSavePath
  *by adding "_world" to the file name. If saving the world was successful then it proceeds to save simulation related
  *data to fSavePath.
- *If overall saving process was successful returns 1, otherwise 0.
+ *If saving process was successful returns 1, otherwise 0.
  *
  *Created with help from AI.
  */

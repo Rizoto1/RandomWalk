@@ -6,6 +6,7 @@
 #include <game/utility.h>
 
 #define SERVER_CAPACITY 5
+
 typedef enum {
   CLIENT_UNUSED = 0,
   CLIENT_ACTIVE = 1,

@@ -66,6 +66,9 @@ static void w_all_nodes_reachable(world_t* this) {
   free(queue);
 }
 
+/*
+ * Initializes world. If initialization fails returns 0, otherwise 1.
+ */
 _Bool w_init(world_t* this, int width, int height, world_type_t worldType, int obstaclePercantage) {
   if (!this) return 0;
 
@@ -218,7 +221,6 @@ int w_load_from_file(world_t* this, const char* fPath) {
   w_init(this, width, height, (world_type_t)typeNum, 0);
 
   if (typeNum == 0) {
-    // calloc already zeroed obstacles – nothing to read
     fclose(f);
     return 1;
   } 

@@ -3,6 +3,10 @@
 
 #include <unistd.h>
 
+/*
+ * Not tested and fully implemented yet.
+ */
+
 typedef struct {
   int fdRead;
   int fdWrite;
