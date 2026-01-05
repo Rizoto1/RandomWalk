@@ -2,12 +2,8 @@
 #include "utility.h"
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
 #include <stdio.h>
 #include <string.h>
-
-//TODO
-//divide obstacle percentage to better represent the percentage, because now 50% is like 90% and 80 is 100%
 
 /*
  * This function goes searches the whole map using BFS. 
@@ -43,13 +39,14 @@ static void w_all_nodes_reachable(world_t* this) {
     for (int i = 0; i < 4; i++) {
       int nx = p.x + dirs[i][0];
       int ny = p.y + dirs[i][1];
-      if (nx >= 0 && nx < width &&
-        ny >= 0 && ny < height &&
-        !visited[ny][nx] &&
-        !w_in_obstacle(this, &(position_t){nx,ny}))
-      {
-        visited[ny][nx] = 1;
-        queue[tail++] = (position_t){nx, ny};
+      position_t newPos = {nx, ny};
+      
+      w_normalize(this, &newPos);
+      
+      if (!visited[newPos.y][newPos.x] &&
+        !w_in_obstacle(this, &newPos)) {
+        visited[newPos.y][newPos.x] = 1;
+        queue[tail++] = newPos;
       }
     }
   }
@@ -138,10 +135,26 @@ void w_normalize(world_t* this, position_t* p) {
   }
 }
 
+/*
+ * Compresses obstaclePercantage based on table with hard coded percantages.
+ */
+static double compress(double p) {
+  double threshold = OBSTACLE_CORRECTION_THRESHOLD / (double) 100;
+  double difference = 1 - threshold;
+  double add = difference / 5;
+  if (p < threshold) return p;
+    if (p < threshold + (1 * add)) return 0.35;
+    if (p < threshold + (2 * add)) return 0.38;
+    if (p < threshold + (3 * add)) return 0.42;
+    if (p < threshold + (4 * add)) return 0.46;
+    return 0.52;
+}
 
 /*
  * This function creates obstacles based on percentage.
  * If percentage is 20% that means 20% of map will be covered in obstacles.
+ * Unless the percentage is above OBSTACLE_CORRECTION_THRESHOLD, then the percentage gets compressed
+ * to better represent the percentage.
  *
  * Created with help from AI.
  */
@@ -149,11 +162,10 @@ void w_create_obstacles(world_t* this, double obstaclePercantage) {
   if (!this) return;
 
   int totalCells = this->width * this->height;
+  obstaclePercantage = compress(obstaclePercantage);
+
   int toBlock = (int)(totalCells * obstaclePercantage);
-
   position_t centerPos = {(int)floor((double)this->width / 2), (int)floor((double)this->height / 2)};
-
-  srand(time(NULL));
 
   while (toBlock > 0) {
     int x = rand() % this->width;

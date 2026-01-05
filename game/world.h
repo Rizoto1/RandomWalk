@@ -3,6 +3,8 @@
 
 #include "utility.h"
 
+#define OBSTACLE_CORRECTION_THRESHOLD 40
+
 typedef enum {
   WO_OBSTACLES,
   W_OBSTALCES

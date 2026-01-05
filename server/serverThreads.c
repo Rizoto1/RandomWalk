@@ -137,6 +137,7 @@ static void start(server_ctx_t* ctx) {
  * If all initializations succeed and server safely ends return 0, otherwise 1.
  */
 int server_init(char** argv) {
+  srand(time(NULL));
   simulation_t sim = {0};
   printf("Server: Initializing simulation\n");
   if (atoi(argv[1]) == 0) {

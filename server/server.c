@@ -2,9 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-//TODO
-//implement admin for the first user that connects to the server.
-
 //argc size 1(file path) + 1 (load/create sim)
 //load sim (0) - 2(ipc) load file path, replications, save file path
 //create sim (1) - 2(ipc) + 4 (walker) + 4 (world) + 3(simulation)  
