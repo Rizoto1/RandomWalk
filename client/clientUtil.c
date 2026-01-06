@@ -30,6 +30,7 @@ void print_message(const char *s, _Bool error, _Bool userInput)
   if (error) {
     printf(
       "            ---------------------------------\n"
+      "\n"
       "                         Error: \n"
     );
   }
