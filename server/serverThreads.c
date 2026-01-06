@@ -21,8 +21,7 @@ static int server_load(char** argv, simulation_t* sim) {
   if(!sim_load_from_file(sim, argv[4], atoi(argv[5]), argv[6])) {
     return 1;
   }
-  sim->replications = atoi(argv[5]);
-  sim->fSavePath = argv[6];
+
   return 0;
 }
 
@@ -84,7 +83,7 @@ static void start(server_ctx_t* ctx) {
   pthread_create(&tsim,NULL,simulation_thread, ctx);
   while (atomic_load(ctx->running)) {
     pthread_mutex_lock(&ctx->cManagement.cMutex);
-    for (int i = 0; i < SERVER_CAPACITY; i++) {
+    for (int i = 0; i < ctx->cManagement.maxClients; i++) {
       client_data_t* c = &ctx->cManagement.clients[i];
       if (c->state == CLIENT_TERMINATED && c->tid != 0) {
         int rc = pthread_tryjoin_np(c->tid, NULL);
@@ -98,10 +97,11 @@ static void start(server_ctx_t* ctx) {
     pthread_mutex_unlock(&ctx->cManagement.cMutex);
     usleep(10000);
   }
-
+  
+  pthread_cond_signal(&ctx->cManagement.add);
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
-  for (int i = 0; i < SERVER_CAPACITY; i++) {
+  for (int i = 0; i < ctx->cManagement.maxClients; i++) {
     client_data_t* c = &ctx->cManagement.clients[i];
     if (c->state == CLIENT_ACTIVE) {
       socket_shutdown(&c->ipc.sock);
@@ -115,7 +115,7 @@ static void start(server_ctx_t* ctx) {
   pthread_join(tsim,NULL);
   pthread_mutex_lock(&ctx->cManagement.cMutex);
 
-  for (int i = 0; i < SERVER_CAPACITY; i++) {
+  for (int i = 0; i < ctx->cManagement.maxClients; i++) {
     client_data_t* c = &ctx->cManagement.clients[i];
 
     if (c->state == CLIENT_TERMINATED && atomic_load(&c->active) == 0 && c->tid != 0) {
@@ -172,7 +172,14 @@ int server_init(char** argv) {
 
   atomic_bool running = 1;
   server_ctx_t ctx = {0};
-  if (server_ctx_init(&ctx, &sim, &running, &ipc)) {
+  int pos;
+  if (atoi(argv[1]) == 0) {
+    pos = 7;
+  } else {
+    pos = 15;
+  }
+
+  if (server_ctx_init(&ctx, &sim, &running, &ipc, atoi(argv[pos]))) {
     perror("Server: Server init failed\n");
     return 1;
   };
@@ -189,7 +196,7 @@ int server_init(char** argv) {
 
 /*
  * This function accepts new clients.
- * If the SERVER_CAPACITY is reached it waits for a user to disconnect.
+ * If the maxClients is reached it waits for a user to disconnect.
  * Otherwise creates a new user and binds receive thread to him.
  * As an argument it is expecting server_ctx_t.
  * Sets the very first client as isAdmin.
@@ -202,13 +209,33 @@ void* server_accept_thread(void* arg) {
   printf("Server: Starting accept thread\n");
   while (atomic_load(ctx->running)) {
     socket_t s = server_accept_client(ctx->ipc->sock.fd);
-    if (s.fd > 0) {
+    if (s.fd >= 0) {
+      printf("Accept fd: %d\n", s.fd);
       client_data_t c;
       memset(&c, 0, sizeof(client_data_t));
       pthread_mutex_lock(&ctx->cManagement.cMutex);
+      
+      if (ctx->cManagement.clientCount >= ctx->cManagement.maxClients) {
+      printf("Accept shutting fd: %d\n", s.fd);
+        socket_shutdown(&s);
+        socket_close(&s);
+          pthread_mutex_unlock(&ctx->cManagement.cMutex);
+        continue;
+      }
 
-      while (ctx->cManagement.clientCount >= SERVER_CAPACITY) {
+      while (ctx->cManagement.clientCount >= ctx->cManagement.maxClients) {
+        printf("Accept waiting\n");
         pthread_cond_wait(&ctx->cManagement.add, &ctx->cManagement.cMutex);
+
+        if (!atomic_load(ctx->running)) {
+          pthread_mutex_unlock(&ctx->cManagement.cMutex);
+          return NULL;
+        }
+      }
+
+      if (!atomic_load(ctx->running)) {
+        pthread_mutex_unlock(&ctx->cManagement.cMutex);
+        return NULL;
       }
 
       atomic_store(&c.active, 1);
@@ -227,7 +254,6 @@ void* server_accept_thread(void* arg) {
 
         ctx->cManagement.clients[clientPos].isAdmin = 1;
       }
-      printf("Server: accepted client fd=%d\n", s.fd);
       recv_data_t* args = malloc(sizeof(recv_data_t));
       args->clientPos = clientPos;
       args->ctx = ctx;
@@ -261,7 +287,6 @@ void* server_recv_thread(void* arg) {
   int clientPos = data->clientPos;
   client_data_t* c = &ctx->cManagement.clients[clientPos];
   socket_t sock = c->ipc.sock;
-  printf("Server: recv thread started for fd=%d\n", c->ipc.sock.fd);
 
   free(arg);
 
@@ -273,6 +298,7 @@ void* server_recv_thread(void* arg) {
       atomic_store(&c->active,0);
       pthread_mutex_lock(&ctx->cManagement.cMutex);
       c->state = CLIENT_TERMINATED;
+      ipc_destroy(&c->ipc);
       pthread_mutex_unlock(&ctx->cManagement.cMutex);
       printf("Server: Terminating recv thread\n");
       return NULL;
@@ -298,6 +324,7 @@ void* server_recv_thread(void* arg) {
         atomic_store(&c->active,0);
         pthread_mutex_lock(&ctx->cManagement.cMutex);
         c->state = CLIENT_TERMINATED;
+      ipc_destroy(&c->ipc);
         pthread_mutex_unlock(&ctx->cManagement.cMutex);
         printf("Server: Terminating recv thread\n");
         return NULL;
@@ -322,6 +349,7 @@ void* server_recv_thread(void* arg) {
   atomic_store(&c->active,0);
   pthread_mutex_lock(&ctx->cManagement.cMutex);
   c->state = CLIENT_TERMINATED;
+      ipc_destroy(&c->ipc);
   pthread_mutex_unlock(&ctx->cManagement.cMutex);
   printf("Server: Terminating recv thread\n");
   return NULL;
@@ -337,7 +365,7 @@ static void send_interactive(void* arg) {
   server_ctx_t* ctx = arg;
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
-  for (int c = 0; c < SERVER_CAPACITY; c++) {
+  for (int c = 0; c < ctx->cManagement.maxClients; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
 
     if (client->active) {
@@ -383,7 +411,7 @@ static void send_summary(void* arg) {
     0, 0};
 
   pthread_mutex_lock(&ctx->cManagement.cMutex);
-  for (int c = 0; c < SERVER_CAPACITY; c++) {
+  for (int c = 0; c < ctx->cManagement.maxClients; c++) {
     client_data_t* client = &ctx->cManagement.clients[c];
 
     pthread_mutex_lock(&ctx->simMutex);

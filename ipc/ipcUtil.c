@@ -19,8 +19,8 @@ int ipc_init(ipc_ctx_t* ipc, int who, const char* type, int port) {
     } else {
       s = socket_init_client("127.0.0.1", port);
     }
-    if (s.fd < 0) {
-      perror("Crating connection failed\n");
+    if (s.fd <= 0) {
+      perror("Creating connection failed\n");
       return 1;
     }
     ipc->sock = s;
@@ -50,8 +50,10 @@ int ipc_destroy(ipc_ctx_t* ipc) {
       shm_close(&ipc->shm);
       break;
     case 2:
+      if (ipc->sock.fd < 0) break;
       socket_shutdown(&ipc->sock);
       socket_close(&ipc->sock);
+      ipc->sock.fd = -1;
       break;
     default:
       return 1;

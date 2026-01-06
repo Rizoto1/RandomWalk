@@ -48,18 +48,22 @@ socket_t server_accept_client(int sfd) {
   tv.tv_usec = 0;
 
   int result = select(sfd + 1, &readfds, NULL, NULL, &tv);
-  socket_t s;
+  socket_t s = {-1};
 
-  if (result == 0) {
-    s.fd = 0;
+  if (result <= 0) {
     return s;
   }
-  if (result < 0) {
-    s.fd = -1;
+
+  if (!FD_ISSET(sfd, &readfds)) {
     return s;
   }
 
   int cfd = accept(sfd, NULL, NULL);
+  if (cfd < 0) {
+    perror("Server: Failed to accept.\n");
+    return s;
+  }
+
   s.fd = cfd;
   return s;
 }
