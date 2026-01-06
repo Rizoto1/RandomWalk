@@ -59,12 +59,12 @@ Or you can start the server from console:
 
 1. Create server from scratch. The server needs 15 arguments:  
 
-                                 int  double double   double    double   int   int                                    int          int
-        ./server/server 1 "sock" port probUp probDown probRight probLeft width height woObstacles(0)/withObstacles(1) replications steps saveFileName
+                                 int  double double   double    double   int   int                                    int          int               
+        ./server/server 1 "sock" port probUp probDown probRight probLeft width height woObstacles(0)/withObstacles(1) replications steps saveFileName oneClient(0)/multipleClients(1)
 
 3. Create server by loading it from file. The server needs 7 arguments:  
 
-        ./server/server 0 "sock" port loadFileName replications saveFileName
+        ./server/server 0 "sock" port loadFileName replications saveFileName oneClient(0)/multipleClients(1)
   
 Run the client:  
 
