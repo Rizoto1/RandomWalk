@@ -364,11 +364,33 @@ void new_game(void) {
     invalidInput = 1;
   }
 
+  invalidInput = 0;
+  int multiClients;
+  while (1) {
+    if (invalidInput) {
+      print_article(0);
+      print_message("Invalid input.\n", 1, 0);
+    } else {
+      print_article(1);
+    }
+
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    print_message("Please choose if the server is for:\n0) one user\n1) multiple users\nChoice: ", 0, 1);
+
+    int rs = read_input(INPUT_INT, &multiClients, 0);
+    if (rs == 1) return;
+    else if (rs == 0 &&
+            multiClients >= 0 && multiClients <= 1) break;
+
+    invalidInput = 1;
+  }
+
   create_server(ipc, port,
                 f_up, f_down, f_right, f_left,
                 width, height, worldType, obstaclePercentage,
                 1,
-                replications, k, fSavePath); 
+                replications, k, fSavePath,
+                multiClients); 
 }
 
 /*
@@ -505,8 +527,29 @@ void load_game(void) {
   print_message("Please enter what type of IPC should server use:\n0) Pipe - not implemented yet\n1) Semaphore - not implemented yet\n2) Socket (default)\nIPC: --------\n", 0, 1);
   sleep(1);
 
+  invalidInput = 0;
+  int multiClients;
+  while (1) {
+    if (invalidInput) {
+      print_article(0);
+      print_message("Invalid input.\n", 1, 0);
+    } else {
+      print_article(1);
+    }
+
+    print_message("If you want to exit anytime type 'q'\n", 0, 1);
+    print_message("Please choose if the server is for:\n0) one user\n1) multiple users\nChoice: ", 0, 1);
+
+    int rs = read_input(INPUT_INT, &multiClients, 0);
+    if (rs == 1) return;
+    else if (rs == 0 &&
+            multiClients >= 0 && multiClients <= 1) break;
+
+    invalidInput = 1;
+  }
+
   //load server from file
-  load_server(0, ipc, port, replications, fLoadPath, fSavePath);
+  load_server(0, ipc, port, replications, fLoadPath, fSavePath, multiClients);
   sleep(3);
 }
 
