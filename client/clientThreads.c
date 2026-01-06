@@ -73,6 +73,8 @@ void* thread_receive(void* arg) {
     if (r <= 0) {
       printf("Client: Terminating recv thread. Opposite site closed connection\n");
       atomic_store(&ctx->running, 0);
+      socket_shutdown(&ctx->ipc->sock);
+      socket_close(&ctx->ipc->sock);
       return NULL;
     }
 
@@ -122,13 +124,11 @@ void* thread_send(void* arg) {
 
     int r = socket_send(&ctx->ipc->sock, &c, sizeof(c));
 
-    if (r <= 0) {
+    if (r <= 0 || c == 'q') {
       atomic_store(&ctx->running, 0);
-      break;
-    }
+      socket_shutdown(&ctx->ipc->sock);
+      socket_close(&ctx->ipc->sock);
 
-    if (c == 'q') {         // user requests quit
-      atomic_store(&ctx->running, 0);
       break;
     }
   }
@@ -147,7 +147,6 @@ void simulation_menu(client_context_t* context) {
   pthread_create(&recv_th, NULL, thread_receive, context);
   pthread_create(&send_th, NULL, thread_send, context);
 
-  sleep(2);
   pthread_join(recv_th, NULL);
   pthread_kill(send_th, SIGUSR1);
   pthread_join(send_th, NULL);
@@ -166,11 +165,12 @@ void create_server(int type, int port,
                    double up, double down, double right, double left,
                    int width, int height, world_type_t worldType, int obstaclePercentage,
                    int serverLoadType,
-                   int replications, int k, char* savePath) {
+                   int replications, int k, char* savePath,
+                   int multiClients) {
   clear_screen();
   pid_t pid = fork();
   char portBuf[16], upBuf[16], downBuf[16], rightBuf[16], leftBuf[16], ipcBuf[16], wTypeBuf[16];
-  char widthBuf[16], heightBuf[16], obstBuf[16], replBuf[16], kBuf[16], serModeBuf[16];
+  char widthBuf[16], heightBuf[16], obstBuf[16], replBuf[16], kBuf[16], serModeBuf[16], multiClientsBuf[16];
 
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
   snprintf(portBuf, sizeof(portBuf), "%d", port);
@@ -185,6 +185,7 @@ void create_server(int type, int port,
   snprintf(serModeBuf, sizeof(serModeBuf), "%d", serverLoadType);
   snprintf(replBuf, sizeof(replBuf), "%d", replications);
   snprintf(kBuf, sizeof(kBuf), "%d", k);
+  snprintf(multiClientsBuf, sizeof(multiClientsBuf), "%d", multiClients);
 
   if (pid < 0) {
     perror("fork not forking");
@@ -209,6 +210,7 @@ void create_server(int type, int port,
       replBuf,
       kBuf,
       savePath,
+      multiClientsBuf,
       NULL     //end for exec
     };
     execv("./server/server", args);
@@ -237,16 +239,18 @@ void create_server(int type, int port,
  */
 void load_server(int serverLoadType,
                  int type, int port,
-                 int replications, char* loadPath, char* savePath) {
+                 int replications, char* loadPath, char* savePath,
+                 int multiClients) {
   clear_screen();
 
   pid_t pid = fork();
-  char serModeBuf[16], ipcBuf[16], portBuf[16], replBuf[16];
+  char serModeBuf[16], ipcBuf[16], portBuf[16], replBuf[16], multiClientsBuf[16];
 
   snprintf(serModeBuf, sizeof(serModeBuf), "%d", serverLoadType);
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
   snprintf(portBuf, sizeof(portBuf), "%d", port);
   snprintf(replBuf, sizeof(replBuf), "%d", replications);
+  snprintf(multiClientsBuf, sizeof(multiClientsBuf), "%d", multiClients);
 
   if (pid < 0) {
     perror("fork not forking");
@@ -263,6 +267,7 @@ void load_server(int serverLoadType,
       loadPath,
       replBuf,
       savePath,
+      multiClientsBuf,
       NULL     //end of exec()
     };
     execv("./server/server", args);
