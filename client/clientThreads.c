@@ -15,7 +15,16 @@
 #include <game/walker.h>
 #include "ipc/ipcUtil.h"
 #include "ui.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <signal.h>
 
+/*
+ * If the view mode is set to summary this function prints summary related data
+ * sent by server.
+ *
+ * Made with help from AI.
+ */
 static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
   int count = hdr->w * hdr->h;
   double* buffer = malloc(count * sizeof(double));
@@ -26,6 +35,12 @@ static void recv_summary(client_context_t* ctx, packet_header_t* hdr) {
   free(buffer);
 }
 
+/*
+ * If the view mode is set to interactive this function prints interactive related data
+ * sent by server.
+ *
+ * Made with help from AI.
+ */
 static void recv_interactive(client_context_t* ctx, packet_header_t* hdr) {
   int count = hdr->w * hdr->h;
   char* buffer = malloc(count * sizeof(char));
@@ -34,17 +49,18 @@ static void recv_interactive(client_context_t* ctx, packet_header_t* hdr) {
   int k = hdr->k;
   position_t* posBuf = malloc(k * sizeof(position_t));
   socket_recv(&ctx->ipc->sock, posBuf, k * sizeof(position_t));
-  
+
   draw_interactive_map(buffer, posBuf, hdr);
 
   free(buffer);
   free(posBuf);
 }
 
-/**
- * Receive thread - continuously receives packets from server
- * Packet:
- * Header + (w*h*2 doubles)
+/*
+ * Continuously received data from server and displayes them on screen
+ * using helper functions based on set view mode.
+ *
+ * Made with help from AI.
  */
 void* thread_receive(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
@@ -60,7 +76,6 @@ void* thread_receive(void* arg) {
       return NULL;
     }
 
-
     if (hdr.type == PKT_SUMMARY) {
       recv_summary(ctx, &hdr);
     } else {
@@ -72,16 +87,34 @@ void* thread_receive(void* arg) {
   return NULL;
 }
 
-/**
- * Send thread - reads commands from keyboard and sends to server
- * Commands:
- * 's' - interactive mode on
- * 'u' - summary mode
- * 'q' - request stop
+/*
+ * Signal handler for interrupt blocking calls (e.g. getchar)
+ *
+ * Made with help from AI.
+ */
+static void wake_handler(int sig) {
+  (void)sig;
+}
+
+/*
+ * Sends users inputs to server.
+ * s - summary - statistics
+ * i - interactive - walkers trajectory
+ * q - client disconnects from server
+ * f - admin only (first user that joins server)
+ *   - shutsdown server
+ * a - summary 1 - displays average steps walker needs to do to reach center
+ * b - summary 2 - displays probability to reach center.
+ *
+ * Made with help from AI.
  */
 void* thread_send(void* arg) {
   client_context_t* ctx = (client_context_t*)arg;
   printf("Client: Starting send thread.\n");
+
+  struct sigaction sa = {0};
+  sa.sa_handler = wake_handler;
+  sigaction(SIGUSR1, &sa, NULL);
 
   while (atomic_load(&ctx->running)) {
     char c = getchar();
@@ -99,10 +132,14 @@ void* thread_send(void* arg) {
       break;
     }
   }
+
   printf("Client: Terminating send thread.\n");
   return NULL;
 }
 
+/*
+ * This function starts all threads and joins them as well.
+ */
 void simulation_menu(client_context_t* context) {
   pthread_t recv_th, send_th;
   context->running = 1;
@@ -111,28 +148,30 @@ void simulation_menu(client_context_t* context) {
   pthread_create(&send_th, NULL, thread_send, context);
 
   sleep(2);
-  // Wait — when user types STOP → terminate
-  pthread_join(send_th, NULL);
-  
-  atomic_store(&context->running, 0);
-
-  pthread_cancel(recv_th);
   pthread_join(recv_th, NULL);
+  pthread_kill(send_th, SIGUSR1);
+  pthread_join(send_th, NULL);
 
   ipc_destroy(context->ipc);
 
 }
 
+/*
+ * Creates server based on all the arguments. Then converts all non char types to char*.
+ * Then forks and execv to create new process server with all the char* params.
+ *
+ * Made with help from AI.
+ */
 void create_server(int type, int port,
-                  double up, double down, double right, double left,
-                  int width, int height, world_type_t worldType, int obstaclePercentage,
-                  int serverLoadType,
-                  int replications, int k, char* savePath) {
+                   double up, double down, double right, double left,
+                   int width, int height, world_type_t worldType, int obstaclePercentage,
+                   int serverLoadType,
+                   int replications, int k, char* savePath) {
+  clear_screen();
   pid_t pid = fork();
   char portBuf[16], upBuf[16], downBuf[16], rightBuf[16], leftBuf[16], ipcBuf[16], wTypeBuf[16];
   char widthBuf[16], heightBuf[16], obstBuf[16], replBuf[16], kBuf[16], serModeBuf[16];
 
-  /* sprintf alebo bezpečnejší snprintf */
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
   snprintf(portBuf, sizeof(portBuf), "%d", port);
   snprintf(upBuf, sizeof(upBuf), "%lf", up);
@@ -150,11 +189,10 @@ void create_server(int type, int port,
   if (pid < 0) {
     perror("fork not forking");
     exit(1);
-}
+  }
   sleep(1);
 
   if (pid == 0) {
-    // child → exec server
     char *args[] = {
       "server",
       serModeBuf,
@@ -171,7 +209,7 @@ void create_server(int type, int port,
       replBuf,
       kBuf,
       savePath,
-      NULL     // koniec pre exec()
+      NULL     //end for exec
     };
     execv("./server/server", args);
     perror("exec");
@@ -193,13 +231,18 @@ void create_server(int type, int port,
   ctx_destroy(&ctx);
 }
 
+
+/*
+ * Creates a server by loading all the necessary data from loadPath with few from user.
+ */
 void load_server(int serverLoadType,
-                int type, int port,
-                int replications, char* loadPath, char* savePath) {
+                 int type, int port,
+                 int replications, char* loadPath, char* savePath) {
+  clear_screen();
+
   pid_t pid = fork();
   char serModeBuf[16], ipcBuf[16], portBuf[16], replBuf[16];
 
-  /* sprintf alebo bezpečnejší snprintf */
   snprintf(serModeBuf, sizeof(serModeBuf), "%d", serverLoadType);
   snprintf(ipcBuf, sizeof(ipcBuf), "%d", type);
   snprintf(portBuf, sizeof(portBuf), "%d", port);
@@ -208,11 +251,10 @@ void load_server(int serverLoadType,
   if (pid < 0) {
     perror("fork not forking");
     exit(1);
-}
+  }
   sleep(1);
 
   if (pid == 0) {
-    // child → exec server
     char *args[] = {
       "server",
       serModeBuf,
@@ -221,7 +263,7 @@ void load_server(int serverLoadType,
       loadPath,
       replBuf,
       savePath,
-      NULL     // koniec pre exec()
+      NULL     //end of exec()
     };
     execv("./server/server", args);
     perror("exec");

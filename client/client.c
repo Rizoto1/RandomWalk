@@ -1,8 +1,5 @@
 #include "ui.h"
 
-//TODO
-//improve UI/UX
-
 /**
  * Starts client
  */

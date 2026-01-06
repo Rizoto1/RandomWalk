@@ -69,6 +69,12 @@ static int server_create(char** argv, simulation_t* sim) {
   return 0;
 }
 
+/*
+ * Starts the server by creating all the necessary threads.
+ * After that tries to join all non-active users threads.
+ * When the simulation is finished or the admin terminated the server
+ * all users get disconnected and all threads are joined.
+ */
 static void start(server_ctx_t* ctx) {
   //multithreading
   printf("Sever: starting threads\n");

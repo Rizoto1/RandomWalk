@@ -51,6 +51,7 @@ void draw_interactive_map(const char* world, position_t* path, packet_header_t* 
   position_t center = {(int)floor((double)hdr->w / 2), (int)floor((double)hdr->h / 2)};
 
   for (int y = 0; y < h; y++) {
+    printf("   ");
     for (int x = 0; x < w; x++) {
       int idx = y * w + x;
 

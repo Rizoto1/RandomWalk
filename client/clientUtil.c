@@ -5,11 +5,17 @@
 #include <string.h>
 #include <ctype.h>
 
+/*
+ * Destroys clients context.
+ */
 void ctx_destroy(client_context_t* ctx) {
   if (!ctx) return;
   ipc_destroy(ctx->ipc);
 }
 
+/*
+ * Initializes clients context.
+ */
 int ctx_init(client_context_t* ctx, ipc_ctx_t* ipc) {
   if (!ctx) return 1;
   ctx->running = 1;
@@ -17,12 +23,27 @@ int ctx_init(client_context_t* ctx, ipc_ctx_t* ipc) {
   return 0;
 }
 
+/*
+ * Clears screen.
+ *
+ * Made with help from AI.
+ */
 void clear_screen(void) {
   printf("\033[2J\033[1;1H");
 }
 
 #define WIDTH 42
 
+/*
+ * Prints string (s) word by word and if the length of the string is greater 
+ * than WIDTH, then the function continues to print the string on a new line.
+ * 
+ * error - is just for visuals, it prints a line and error
+ * userInput - if it is true, then the function doesn't add line after
+ *              the end of sentence.
+ *
+ * Made with help from AI.
+ */
 void print_message(const char *s, _Bool error, _Bool userInput)
 {
   int col = 0;
@@ -81,6 +102,9 @@ void print_message(const char *s, _Bool error, _Bool userInput)
   }
 }
 
+/*
+ * Prints the game name.
+ */
 void print_article(_Bool wLine) {
   clear_screen();
   printf(
@@ -106,6 +130,9 @@ void print_article(_Bool wLine) {
   }
 }
 
+/*
+ * Prints main menu.
+ */
 void print_mm(void) {
   printf(
     "\n"
@@ -120,6 +147,13 @@ void print_mm(void) {
   );
 }
 
+/*
+ * Reads user input. If it reads empty string waits for new input.
+ * If the input equals 'q' return 1.
+ * If the input is desired type return 0, otherwise -1.
+ *
+ * Made with help from AI.
+ */
 int read_input(
     input_type_t type,
     void *out,
